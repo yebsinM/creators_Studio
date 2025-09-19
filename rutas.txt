@@ -1,0 +1,6 @@
+# Archivo de rutas de proyectos Creators Studio
+# Formato: nombre_proyecto|ruta_completa
+tercer intento|C:\Users\Yebsin\Documents\prueba\tercer intento
+intento2|C:\Users\Yebsin\Documents\prueba\intento2
+pruebadeAndroidJava|C:\Users\Yebsin\Documents\prueba\pruebadeAndroidJava
+segundo intento|C:\Users\Yebsin\Documents\prueba\segundo intento
