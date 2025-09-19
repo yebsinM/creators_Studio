@@ -69,14 +69,18 @@ class AppManager(QMainWindow):
         self.set_main_app_size()
         self.stack.setCurrentIndex(2)
 
-    def show_entorno_java(self):
+    def show_entorno_java(self, name=None, path=None, lang=None):
         """Mostrar entorno Java (pantalla completa)"""
         if not self.entorno_java:
-            self.entorno_java = IllustratorWindow()
+            self.entorno_java = IllustratorWindow(
+                project_name=name or "Proyecto",
+                project_path=path,
+                project_language=lang or "Java"
+            )
             self.entorno_java.closed.connect(self.handle_entorno_closed)
-        
-        self.hide() 
+        self.hide()
         self.entorno_java.showMaximized()
+        self.project_opened.emit(name or "Proyecto", path, lang or "Java")
 
     def handle_login_success(self):
         """Método que se llama cuando el login es exitoso"""

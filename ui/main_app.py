@@ -726,7 +726,6 @@ class AndroidSetupWidget(ProjectSetupWidget):
             f"Ubicación: {project_dir}"
         )
         
-
         self.entorno_window = IllustratorWindow(
             project_name=project_name,
             project_path=project_dir,
@@ -734,12 +733,15 @@ class AndroidSetupWidget(ProjectSetupWidget):
         )
         self.entorno_window.show()
         
+        # Cerrar la ventana principal en lugar de solo ocultarla
         if hasattr(self, 'parent') and self.parent():
-            self.parent().close()
+            main_window = self.parent()
+            while main_window.parent() is not None:
+                main_window = main_window.parent()
+            main_window.close()
             
         if hasattr(self.parent(), 'update_project_list'):
             self.parent().update_project_list()
-
     def create_project_structure(self, project_dir, language):
         """Crea la estructura de archivos según el lenguaje seleccionado"""
         try:
@@ -877,24 +879,17 @@ class AndroidSetupWidget(ProjectSetupWidget):
     '''
         with open(os.path.join(project_dir, "gradle/wrapper/gradle-wrapper.properties"), "w", encoding='utf-8') as f:
             f.write(wrapper_content)
-    def open_illustrator_window(self):
-        """Abre la ventana del editor de forma segura"""
-        project_name = self.name_input.text().strip()
-        project_path = os.path.join(self.location_input.text(), project_name)
-        try:
-            from ui.entorno_java import IllustratorWindow
-            
-            self.entorno_window = IllustratorWindow(  
-                project_name=project_name,
-                project_path=project_path
-                )
-            self.entorno_window.show()
-
-            if hasattr(self, 'parent') and self.parent():
-                self.parent().hide() 
-                
-        except Exception as e:
-            print(f"No se pudo abrir el editor: {e}")
+         
+    def open_illustrator_window(name, path, lang):
+        print(f"Abriendo proyecto: {name}, {path}, {lang}")
+        entorno_window = IllustratorWindow(
+            project_name=name,
+            project_path=path,
+            project_language=lang
+        )
+        entorno_window.show()
+        # Cerrar la ventana principal
+        main_app.parent().close()
 
 class ProjectListWidget(QWidget):
     def __init__(self, parent=None):
@@ -1108,7 +1103,6 @@ class ProjectListWidget(QWidget):
         try:
             project_name = project_data["name"]
             project_path = project_data["path"]
-
             project_language = self.load_project_language(project_name, project_path)
             
             if not project_path or not os.path.exists(project_path):
@@ -1116,17 +1110,13 @@ class ProjectListWidget(QWidget):
                 os.makedirs(default_path, exist_ok=True)
                 project_path = os.path.abspath(default_path)
 
-            from ui.entorno_java import IllustratorWindow
+            # Emitir señal en lugar de crear la ventana directamente
+            main_window = self.parent()
+            while hasattr(main_window, 'parent') and main_window.parent() is not None:
+                main_window = main_window.parent()
             
-            self.entorno_window = IllustratorWindow(
-                project_name=project_name,
-                project_path=project_path,
-                project_language=project_language or "Java" 
-            )
-            self.entorno_window.show()
-            
-            if hasattr(self, 'parent') and self.parent():
-                self.parent().hide()
+            if hasattr(main_window, 'project_opened'):
+                main_window.project_opened.emit(project_name, project_path, project_language)
                 
         except Exception as e:
             print(f"Error al abrir proyecto: {e}")
@@ -1169,12 +1159,26 @@ class ProjectListWidget(QWidget):
             QMessageBox.critical(self, "Error", f"No se pudo abrir la ubicación:\n{str(e)}")
             
 class MainApp(QWidget):
+    project_opened = Signal(str, str, str)  
     def __init__(self, on_logout, show_entorno_callback):
         super().__init__()
         self.on_logout = on_logout
         self.show_entorno = show_entorno_callback
         self.setup_ui()
+        self.project_opened.connect(self.show_entorno)
 
+    def open_project(self, item):
+        project_data = item.data(Qt.UserRole)
+        if not project_data or isinstance(project_data, str):
+            return
+        try:
+            project_name = project_data["name"]
+            project_path = project_data["path"]
+            project_language = self.load_project_language(project_name, project_path)
+            self.project_opened.emit(project_name, project_path, project_language)
+        except Exception as e:
+            print(f"Error al abrir proyecto: {e}")  
+              
     def setup_ui(self):
         self.setMinimumSize(1000, 650)
         main_layout = QVBoxLayout(self)
@@ -1311,47 +1315,30 @@ class MainApp(QWidget):
         self.install_thread.start()
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    
-    font = QFont()
-    font.setPointSize(10)
-    app.setFont(font)
+    import sys
+    from PySide6.QtWidgets import QApplication, QMainWindow
 
-    window = QMainWindow()
+    app = QApplication(sys.argv)
 
     def on_logout():
         print("Logout")
 
-    main_app = MainApp(on_logout)
-    window.setCentralWidget(main_app)
+    def open_illustrator_window(name, path, lang):
+        print(f"Abriendo proyecto: {name}, {path}, {lang}")
+        entorno_window = IllustratorWindow(
+            project_name=name,
+            project_path=path,
+            project_language=lang
+        )
+        entorno_window.show()
 
-    main_app.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    window.setMinimumSize(800, 600)
-    window.showMaximized()
-    
-    sys.exit(app.exec())
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-
-    font = QFont()
-    font.setPointSize(10)
-    app.setFont(font)
- 
-
+    main_app = MainApp(on_logout, open_illustrator_window)
     window = QMainWindow()
-
-    def on_logout():
-        print("Logout")
-
-    main_app = MainApp(on_logout)
     window.setCentralWidget(main_app)
-
-    window.setMinimumSize(1000, 650) 
-    window.resize(1200, 800)  
-    
+    window.setMinimumSize(1000, 650)
+    window.resize(1200, 800)
     window.show()
-    
+
     sys.exit(app.exec())
 
 class LanguageInstallDialog(QDialog):

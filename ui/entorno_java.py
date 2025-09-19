@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import requests
 import threading
 import sys
+import math 
 import re
 import uuid
 import json
@@ -16,7 +17,7 @@ from PySide6.QtWidgets import (
     QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsItem, QSlider,
     QFileDialog, QScrollArea, QGroupBox, QRadioButton, QCheckBox,
     QSizePolicy, QTabWidget, QTextEdit, QDialog,
-    QPlainTextEdit
+    QPlainTextEdit, QListWidgetItem 
 )
 
 from PySide6.QtGui import (
@@ -612,17 +613,37 @@ class DesignCanvas(QGraphicsView):
         
   
         self.selectElement(element)
-    
+        
     def selectElement(self, element):
-   
+
         if self.selectedElement and self.selectedElement.graphicsItem:
             self.selectedElement.graphicsItem.setSelected(False)
-        
-   
+
         self.selectedElement = element
         if element and element.graphicsItem:
             element.graphicsItem.setSelected(True)
             self.elementSelected.emit(element)
+  
+            if self.parent() and hasattr(self.parent(), 'properties_panel'):
+                self.parent().properties_panel.setVisible(True)
+                self.update_properties_panel(element)
+
+    def update_properties_panel(self, element):
+        if not self.parent() or not hasattr(self.parent(), 'properties_panel'):
+            return
+
+        if hasattr(self.parent(), 'text_size_combo') and element.getProperty("textSize"):
+            text_size = element.getProperty("textSize")
+            self.parent().text_size_combo.setCurrentText(text_size)
+        
+        if hasattr(self.parent(), 'corner_radius_slider') and element.getProperty("cornerRadius"):
+            radius_str = element.getProperty("cornerRadius")
+            if radius_str.endswith("dp"):
+                try:
+                    radius = int(radius_str[:-2])
+                    self.parent().corner_radius_slider.setValue(radius)
+                except ValueError:
+                    pass
 
 class LineNumberArea(QWidget):
     def __init__(self, editor):
@@ -1810,20 +1831,176 @@ class IllustratorWindow(QMainWindow):
         self.setup_workspace()
         self.create_workspace_presets()
         self.setup_ui()
+
+        self.setup_enhanced_docks()
+
+        self.create_menu_bar()
         self.setup_language_specific_features()
+
+    def setup_enhanced_docks(self):
+        """Configuración mejorada de docks inspirada en MainWindow"""
+        # Reorganizar docks con disposición inicial más limpia
+        self.removeDockWidget(self.tool_panel)
+        self.removeDockWidget(self.layers_panel)
+        self.removeDockWidget(self.color_panel)
+        self.removeDockWidget(self.ai_panel)
+        self.removeDockWidget(self.file_explorer_panel)
+        
+        # Añadir docks en disposición organizada
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.tool_panel)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.layers_panel)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.color_panel)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.ai_panel)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.file_explorer_panel)
+        
+        # Para el panel de propiedades (si decides activarlo después)
+        # self.addDockWidget(Qt.RightDockWidgetArea, self.properties_panel)
+        
+        # Tabificar paneles relacionados
+        self.tabifyDockWidget(self.tool_panel, self.layers_panel)
+        self.tabifyDockWidget(self.tool_panel, self.file_explorer_panel)
+        self.tabifyDockWidget(self.color_panel, self.ai_panel)
+        
+        # Mostrar el primer panel de cada grupo de tabs
+        self.tool_panel.raise_()
+        self.color_panel.raise_()
+    def open_android_designer(self):
+        """Abre la ventana de diseñador Android"""
+        if 'designer' not in self.open_windows:
+            self.open_windows['designer'] = IllustratorWindow("Nuevo Diseño Android", project_language="Java")
+            self.open_windows['designer'].closed.connect(lambda: self.on_window_closed('designer'))
+        self.open_windows['designer'].show()
+        self.open_windows['designer'].raise_()
+
+    def open_java_editor(self):
+        """Abre ventana de editor Java"""
+        if 'java_editor' not in self.open_windows:
+            self.open_windows['java_editor'] = self.create_code_editor_window("Editor Java", "java")
+        self.open_windows['java_editor'].show()
+        self.open_windows['java_editor'].raise_()
+
+    def open_xml_editor(self):
+        """Abre ventana de editor XML"""
+        if 'xml_editor' not in self.open_windows:
+            self.open_windows['xml_editor'] = self.create_code_editor_window("Editor XML", "xml")
+        self.open_windows['xml_editor'].show()
+        self.open_windows['xml_editor'].raise_()
+
+    def open_ai_chat(self):
+        """Abre ventana de chat IA independiente"""
+        if 'ai_chat' not in self.open_windows:
+            self.open_windows['ai_chat'] = self.create_ai_chat_window()
+        self.open_windows['ai_chat'].show()
+        self.open_windows['ai_chat'].raise_()
+
+    def open_project_explorer(self):
+        """Abre ventana de explorador de proyectos"""
+        if 'project_explorer' not in self.open_windows:
+            self.open_windows['project_explorer'] = self.create_project_explorer_window()
+        self.open_windows['project_explorer'].show()
+        self.open_windows['project_explorer'].raise_()
+
+    def create_code_editor_window(self, title, language):
+        """Crea ventana de editor de código"""
+        window = QMainWindow(self)
+        window.setWindowTitle(title)
+        window.resize(800, 600)
+        
+        editor = CodeEditor()
+        if language == "java":
+            editor.setPlainText("// Editor Java\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hola Mundo\");\n    }\n}")
+        elif language == "xml":
+            editor.setPlainText("<!-- Editor XML -->\n<LinearLayout xmlns:android=\"http://schemas.android.com/apk/res/android\"\n    android:layout_width=\"match_parent\"\n    android:layout_height=\"match_parent\">\n</LinearLayout>")
+        
+        editor.set_highlighter(f"example.{language}")
+        window.setCentralWidget(editor)
+        
+        return window
+
+    def create_ai_chat_window(self):
+        """Crea ventana de chat IA independiente"""
+        window = QMainWindow(self)
+        window.setWindowTitle("Chat IA - Asistente")
+        window.resize(500, 600)
+        
+       
+        ai_widget = QWidget()
+        layout = QVBoxLayout(ai_widget)
+        layout.addWidget(QLabel("Panel de Chat IA"))
+        window.setCentralWidget(ai_widget)
+        
+        return window
+
+    def create_project_explorer_window(self):
+        """Crea ventana de explorador de proyectos"""
+        window = QMainWindow(self)
+        window.setWindowTitle("Explorador de Proyectos")
+        window.resize(400, 600)
+        
+        fs_model = QFileSystemModel()
+        fs_model.setRootPath("")
+        tree = QTreeView()
+        tree.setModel(fs_model)
+        tree.setRootIndex(fs_model.index(""))
+        
+        window.setCentralWidget(tree)
+        return window
+
+    def cascade_windows(self):
+        """Organiza ventanas en cascada"""
+        if not self.open_windows:
+            return
+            
+        x, y = 30, 30
+        for i, (key, window) in enumerate(self.open_windows.items()):
+            window.move(x * (i + 1), y * (i + 1))
+            window.raise_()
+
+    def tile_windows(self):
+        """Organiza ventanas en mosaico"""
+        if not self.open_windows:
+            return
+            
+        screen_geometry = QApplication.primaryScreen().availableGeometry()
+        num_windows = len(self.open_windows)
+        cols = int(math.sqrt(num_windows))
+        rows = (num_windows + cols - 1) // cols
+        
+        width = screen_geometry.width() // cols
+        height = screen_geometry.height() // rows
+        
+        for i, (key, window) in enumerate(self.open_windows.items()):
+            row = i // cols
+            col = i % cols
+            x = col * width
+            y = row * height
+            window.setGeometry(x, y, width, height)
+            window.raise_()
+
+    def close_all_windows(self):
+        """Cierra todas las ventanas abiertas"""
+        for key, window in list(self.open_windows.items()):
+            window.close()
+        self.open_windows.clear()
+
+    def on_window_closed(self, window_key):
+        """Maneja el cierre de ventanas"""
+        if window_key in self.open_windows:
+            del self.open_windows[window_key]
 
     def setup_workspace(self):
         self.current_preset = "Default"
         self.tool_panel_position = "left"
-        self.visible_panels = ["Tools", "Layers", "Properties", "Color", "AI Assistant"]
+        #self.visible_panels = ["Tools", "Layers", "Properties", "Color", "AI Assistant"]
+        self.visible_panels = ["Tools", "Layers", "Color", "AI Assistant"]
 
     def create_workspace_presets(self):
         self.workspace_presets = {
-            "Default": WorkspacePreset("Default", "left", ["Tools", "Layers", "Properties", "AI Assistant"]),
+            "Default": WorkspacePreset("Default", "left", ["Tools", "Layers", "AI Assistant"]),
             "Minimal": WorkspacePreset("Minimal", "left", ["Tools", "AI Assistant"]),
             "Painting": WorkspacePreset("Painting", "right", ["Tools", "Brushes", "Color", "AI Assistant"]),
             "Typography": WorkspacePreset("Typography", "left", ["Tools", "Character", "Paragraph", "AI Assistant"]),
-            "Development": WorkspacePreset("Development", "right", ["Tools", "Properties", "AI Assistant"])
+            "Development": WorkspacePreset("Development", "right", ["Tools", "AI Assistant"])
         }
 
     def setup_ui(self):
@@ -1855,7 +2032,7 @@ class IllustratorWindow(QMainWindow):
  
         self.create_tool_panel()
         self.create_layers_panel()
-        self.create_properties_panel()
+        #self.create_properties_panel()
         self.create_color_panel()
         self.create_brushes_panel()
         self.create_character_panel()
@@ -1962,19 +2139,63 @@ class IllustratorWindow(QMainWindow):
         layers_widget.setLayout(layout)
         self.layers_panel.setWidget(layers_widget)
 
-    def create_properties_panel(self):
-        self.properties_panel = QDockWidget("Propiedades", self)
-        self.properties_panel.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        
-        properties_widget = QWidget()
-        layout = QVBoxLayout(properties_widget)
-        
-        self.properties_label = QLabel("Seleccione un elemento para ver sus propiedades")
-        layout.addWidget(self.properties_label)
-        
-        properties_widget.setLayout(layout)
-        self.properties_panel.setWidget(properties_widget)
+   # def create_properties_panel(self):
+   #     self.properties_panel = QDockWidget("Propiedades", self)
+    #    self.properties_panel.setAllowedAreas(
+    #        Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
+   #     )
 
+   #     self.properties_panel.setFeatures(
+    #        QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetClosable
+     #   )
+      #  properties_widget = QWidget()
+     #   layout = QVBoxLayout(properties_widget)
+    #    
+   #     self.properties_label = QLabel("Seleccione un elemento para ver sus propiedades")
+    #    layout.addWidget(self.properties_label)
+        
+        
+     #   self.bg_color_btn = QPushButton("Color de fondo")
+      #  self.bg_color_btn.clicked.connect(self.change_element_bg_color)
+       # layout.addWidget(self.bg_color_btn)
+        
+      #  self.text_size_combo = QComboBox()
+     #   self.text_size_combo.addItems(["12sp", "14sp", "16sp", "18sp", "20sp", "24sp"])
+    #    self.text_size_combo.currentTextChanged.connect(self.change_text_size)
+    #    layout.addWidget(QLabel("Tamaño de texto:"))
+     #   layout.addWidget(self.text_size_combo)
+        
+    #    self.corner_radius_slider = QSlider(Qt.Horizontal)
+    #    self.corner_radius_slider.setRange(0, 32)
+    #    self.corner_radius_slider.valueChanged.connect(self.change_corner_radius)
+    #    layout.addWidget(QLabel("Radio de esquinas:"))
+    #    layout.addWidget(self.corner_radius_slider)
+        
+    #    layout.addStretch()
+    #    properties_widget.setLayout(layout)
+    #    self.properties_panel.setWidget(properties_widget)
+        
+        
+    #    self.properties_panel.setVisible(False)
+   
+    def change_element_bg_color(self):
+        if self.selected_element:
+            color = QColorDialog.getColor()
+            if color.isValid():
+                self.selected_element.setProperty("backgroundColor", color.name())
+                if self.selected_element.graphicsItem:
+                    self.selected_element.graphicsItem.setBrush(QBrush(color))
+               # self.properties_panel.update()
+
+    def change_text_size(self, size):
+        if self.selected_element:
+            self.selected_element.setProperty("textSize", size)
+           # self.properties_panel.update()
+
+    def change_corner_radius(self, radius):
+        if self.selected_element:
+            self.selected_element.setProperty("cornerRadius", f"{radius}dp")
+          #  self.properties_panel.update()
     def create_color_panel(self):
         self.color_panel = QDockWidget("Colores", self)
         self.color_panel.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
@@ -2023,6 +2244,7 @@ class IllustratorWindow(QMainWindow):
         explorer_widget = QWidget()
         layout = QVBoxLayout(explorer_widget)
         
+        # ===== CONFIGURACIÓN SIMPLIFICADA =====
         self.file_model = QFileSystemModel()
         self.file_model.setRootPath(self.project_path)
         
@@ -2031,9 +2253,10 @@ class IllustratorWindow(QMainWindow):
         self.file_tree.setRootIndex(self.file_model.index(self.project_path))
         self.file_tree.doubleClicked.connect(self.on_file_double_clicked)
         
-        self.file_tree.hideColumn(1)
-        self.file_tree.hideColumn(2)
-        self.file_tree.hideColumn(3)
+        # Ocultar columnas innecesarias (más simple)
+        for i in range(1, 4):  # Columnas 1, 2 y 3
+            self.file_tree.hideColumn(i)
+        # ===== FIN CONFIGURACIÓN SIMPLIFICADA =====
         
         layout.addWidget(self.file_tree)
         explorer_widget.setLayout(layout)
@@ -2075,48 +2298,92 @@ class IllustratorWindow(QMainWindow):
         redo_action.setShortcut("Ctrl+Y")
         edit_menu.addAction(redo_action)
         
+        # ===== MENÚ VER =====
         view_menu = menubar.addMenu("Ver")
+        
+        # Submenú para paneles
+        panels_menu = view_menu.addMenu("Paneles")
+        panels_menu.addAction(self.tool_panel.toggleViewAction())
+        panels_menu.addAction(self.layers_panel.toggleViewAction())
+        panels_menu.addAction(self.color_panel.toggleViewAction())
+        panels_menu.addAction(self.ai_panel.toggleViewAction())
+        panels_menu.addAction(self.file_explorer_panel.toggleViewAction())
+        
+        # Submenú para workspace presets
         workspace_menu = view_menu.addMenu("Espacio de Trabajo")
         for preset_name in self.workspace_presets.keys():
             action = QAction(preset_name, self)
             action.triggered.connect(lambda checked, name=preset_name: self.apply_workspace_preset(name))
             workspace_menu.addAction(action)
+        # ===== FIN MENÚ VER =====
+        
+        windows_menu = menubar.addMenu("Ventanas")
+        
+        self.open_designer_action = QAction("Diseñador Android", self)
+        windows_menu.addAction(self.open_designer_action)
+        
+        self.open_java_editor_action = QAction("Editor Java", self)
+        windows_menu.addAction(self.open_java_editor_action)
+        
+        self.open_xml_editor_action = QAction("Editor XML", self)
+        windows_menu.addAction(self.open_xml_editor_action)
+        
+        self.open_ai_chat_action = QAction("Chat IA", self)
+        windows_menu.addAction(self.open_ai_chat_action)
+        
+        self.open_project_explorer_action = QAction("Explorador Proyectos", self)
+        windows_menu.addAction(self.open_project_explorer_action)
+        
+        windows_menu.addSeparator()
 
+        self.cascade_action = QAction("Cascada", self)
+        self.cascade_action.triggered.connect(self.cascade_windows)
+        windows_menu.addAction(self.cascade_action)
+
+        self.tile_action = QAction("Mosaico", self)
+        self.tile_action.triggered.connect(self.tile_windows)
+        windows_menu.addAction(self.tile_action)
+
+        self.close_all_action = QAction("Cerrar Todas", self)
+        self.close_all_action.triggered.connect(self.close_all_windows)
+        windows_menu.addAction(self.close_all_action)
+    
+        self.open_designer_action.triggered.connect(self.open_android_designer)
+        self.open_java_editor_action.triggered.connect(self.open_java_editor)
+        self.open_xml_editor_action.triggered.connect(self.open_xml_editor)
+        self.open_ai_chat_action.triggered.connect(self.open_ai_chat)
+        self.open_project_explorer_action.triggered.connect(self.open_project_explorer) 
+        self.open_windows = {}
     def apply_workspace_preset(self, preset_name):
         if preset_name in self.workspace_presets:
             preset = self.workspace_presets[preset_name]
             self.current_preset = preset_name
-            
-            all_panels = [
-                self.tool_panel, self.layers_panel, self.properties_panel,
-                self.color_panel, self.brushes_panel, self.character_panel,
-                self.paragraph_panel, self.ai_panel, self.file_explorer_panel
-            ]
-            
-            for panel in all_panels:
-                if panel:
-                    panel.setVisible(False)
-            
-            for panel_name in preset.panels:
-                if panel_name == "Tools" and self.tool_panel:
-                    area = Qt.LeftDockWidgetArea if preset.tool_panel_pos == "left" else Qt.RightDockWidgetArea
-                    self.addDockWidget(area, self.tool_panel)
-                    self.tool_panel.setVisible(True)
-                elif panel_name == "Layers" and self.layers_panel:
-                    self.layers_panel.setVisible(True)
-                elif panel_name == "Properties" and self.properties_panel:
-                    self.properties_panel.setVisible(True)
-                elif panel_name == "Color" and self.color_panel:
-                    self.color_panel.setVisible(True)
-                elif panel_name == "Brushes" and self.brushes_panel:
-                    self.brushes_panel.setVisible(True)
-                elif panel_name == "Character" and self.character_panel:
-                    self.character_panel.setVisible(True)
-                elif panel_name == "Paragraph" and self.paragraph_panel:
-                    self.paragraph_panel.setVisible(True)
-                elif panel_name == "AI Assistant" and self.ai_panel:
-                    self.ai_panel.setVisible(True)
 
+            all_panels = {
+                "Tools": self.tool_panel,
+                "Layers": self.layers_panel,
+               # "Properties": self.properties_panel,
+                "Color": self.color_panel,
+                "Brushes": self.brushes_panel,
+                "Character": self.character_panel,
+                "Paragraph": self.paragraph_panel,
+                "AI Assistant": self.ai_panel,
+                "File Explorer": self.file_explorer_panel
+            }
+            
+    #        for panel_name, panel in all_panels.items():
+    #            if panel:
+    #                panel.setVisible(False)
+            
+           
+    #        for panel_name in preset.panels:
+    #            if panel_name in all_panels and all_panels[panel_name]:
+    #                all_panels[panel_name].setVisible(True)
+    #                
+    #                if panel_name == "Tools":
+    #                    area = Qt.LeftDockWidgetArea if preset.tool_panel_pos == "left" else Qt.RightDockWidgetArea
+    #                    self.addDockWidget(area, all_panels[panel_name])
+  
     def set_tool(self, tool_id):
         self.current_tool = tool_id
         for tid, btn in self.tool_buttons.items():
@@ -2404,171 +2671,37 @@ class IllustratorWindow(QMainWindow):
         self.closed.emit()
         super().closeEvent(event)
 
-class AIChatPanel(QDockWidget):
-    def __init__(self, parent=None):
-        super().__init__("AI Assistant", parent)
-        self.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
-        
-        chat_widget = QWidget()
-        layout = QVBoxLayout(chat_widget)
-       
-        self.chat_history = QTextEdit()
-        self.chat_history.setReadOnly(True)
-        self.chat_history.setPlaceholderText("Conversa con la IA sobre tu diseño...")
-        layout.addWidget(QLabel("Asistente de IA"))
-        layout.addWidget(self.chat_history)
-       
-        input_layout = QHBoxLayout()
-        self.user_input = QLineEdit()
-        self.user_input.setPlaceholderText("Escribe tu mensaje aquí...")
-        self.user_input.returnPressed.connect(self.send_message)
-        input_layout.addWidget(self.user_input)
-        
-        self.send_button = QPushButton("Enviar")
-        self.send_button.clicked.connect(self.send_message)
-        input_layout.addWidget(self.send_button)
-        
-        layout.addLayout(input_layout)
-        chat_widget.setLayout(layout)
-        self.setWidget(chat_widget)
-        
-    def send_message(self):
-        user_text = self.user_input.text().strip()
-        if not user_text:
-            return
-            
-        self.add_message("Tú", user_text)
-        self.user_input.clear()
-        
-        self.simulate_ai_response(user_text)
-    
-    def add_message(self, sender, message):
-        cursor = self.chat_history.textCursor()
-        cursor.movePosition(QTextCursor.End)
-        
-        if sender == "Tú":
-            cursor.insertHtml(f'<div style="background-color: #e3f2fd; padding: 5px; margin: 2px; border-radius: 5px;">'
-                             f'<b>{sender}:</b> {message}</div><br>')
-        else:
-            cursor.insertHtml(f'<div style="background-color: #f5f5f5; padding: 5px; margin: 2px; border-radius: 5px;">'
-                             f'<b>{sender}:</b> {message}</div><br>')
-       
-        self.chat_history.ensureCursorVisible()
-    
-    def simulate_ai_response(self, user_message):
-    
-        QApplication.processEvents()
-      
-        if "java" in user_message.lower() or "android" in user_message.lower() or "código" in user_message.lower():
-            response = "Puedo ayudarte a generar código Java/Android. Describe qué elemento de la interfaz quieres convertir en código o qué funcionalidad necesitas."
-        elif "rectángulo" in user_message.lower() or "cuadrado" in user_message.lower():
-            response = "Has creado un rectángulo. ¿Quieres que genere el código XML para este elemento en Android?"
-        elif "texto" in user_message.lower():
-            response = "Elemento de texto detectado. ¿Deseas que te ayude con el código TextView para Android?"
-        elif "botón" in user_message.lower():
-            response = "Veo que has añadido un botón. ¿Necesitas el código Button para Android con algún listener específico?"
-        elif "color" in user_message.lower():
-            response = "Puedo ayudarte con los valores de color en formato Android (#AARRGGBB). ¿Qué color necesitas?"
-        else:
-            response = "Entiendo que estás diseñando una interfaz. Puedo ayudarte a generar el código Java/Android correspondiente. ¿Qué elemento has creado o qué necesitas implementar?"
-        
-       
-        QApplication.processEvents()
-        self.add_message("Asistente IA", response)
 
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Entorno Java")
-        self.resize(1400, 900)
 
-       
-        self.canvas = DesignCanvas()
-        self.setCentralWidget(self.canvas)
 
+#if __name__ == "__main__":
+#    app = QApplication(sys.argv)
+
+#    window = IllustratorWindow("Mi Proyecto Android", project_language="Java")
+#    window.show()
   
-        self.fs_model = QFileSystemModel()
-        self.fs_model.setRootPath("")
-        self.tree = QTreeView()
-        self.tree.setModel(self.fs_model)
-        self.tree.setRootIndex(self.fs_model.index(""))
+#    rect_element = UIElement("rectangle", 50, 50, 200, 100)
+#    rect_element.setProperty("backgroundColor", "#6200EE")
+#    rect_element.setProperty("cornerRadius", "8dp")
 
-        self.explorer_dock = QDockWidget("Explorer", self)
-        self.explorer_dock.setWidget(self.tree)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.explorer_dock)
+#    text_element = UIElement("text", 70, 70, 160, 60)
+#    text_element.setProperty("text", "Hola Mundo")
+#    text_element.setProperty("textColor", "#FFFFFF")
+#    text_element.setProperty("textSize", "18sp")
 
-        
-        self.editor_tabs = QTabWidget()
-        editor1 = CodeEditor()
-        editor1.setPlainText("// Editor listo para Java, Python, etc.")
-        self.editor_tabs.addTab(editor1, "Editor 1")
+#    button_element = UIElement("button", 100, 200, 160, 60)
+#    button_element.setProperty("text", "Presionar")
+#    button_element.setProperty("backgroundColor", "#03DAC6")
+#    button_element.setProperty("textColor", "#000000")
 
-        self.editor_dock = QDockWidget("Code Editor", self)
-        self.editor_dock.setWidget(self.editor_tabs)
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.editor_dock)
+#    if hasattr(window, "code_generator") and window.code_generator:
+#        window.code_generator.addElement(rect_element)
+#        window.code_generator.addElement(text_element)
+#        window.code_generator.addElement(button_element)
 
-        self.ai_panel = EnhancedAIChatPanel(code_generator=None)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.ai_panel)
+#    if hasattr(window, "layers_list"):
+#        window.layers_list.addItem("Rectángulo (View)")
+#        window.layers_list.addItem("Texto (TextView)")
+#        window.layers_list.addItem("Botón (Button)")
 
-        toolbar = QToolBar("Main Toolbar")
-        toolbar.setIconSize(QSize(16, 16))
-        self.addToolBar(toolbar)
-
-        new_file_action = QAction("Nuevo Archivo", self)
-        open_file_action = QAction("Abrir Archivo", self)
-        save_file_action = QAction("Guardar", self)
-
-        toolbar.addAction(new_file_action)
-        toolbar.addAction(open_file_action)
-        toolbar.addAction(save_file_action)
-
-        menubar = self.menuBar()
-
-        file_menu = menubar.addMenu("Archivo")
-        file_menu.addAction(new_file_action)
-        file_menu.addAction(open_file_action)
-        file_menu.addAction(save_file_action)
-
-        view_menu = menubar.addMenu("Ver")
-
-        windows_menu = view_menu.addMenu("Ventanas")
-        windows_menu.addAction(self.explorer_dock.toggleViewAction())
-        windows_menu.addAction(self.editor_dock.toggleViewAction())
-        windows_menu.addAction(self.ai_panel.toggleViewAction())
-     
-        self.setStatusBar(QStatusBar(self))
-        self.statusBar().showMessage("Entorno Java cargado ✔")
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-
-    window = MainWindow()
-    window.setWindowTitle("Mi Proyecto Android")
-    window.show()
-
-    rect_element = UIElement("rectangle", 50, 50, 200, 100)
-    rect_element.setProperty("backgroundColor", "#6200EE")
-    rect_element.setProperty("cornerRadius", "8dp")
-
-    text_element = UIElement("text", 70, 70, 160, 60)
-    text_element.setProperty("text", "Hola Mundo")
-    text_element.setProperty("textColor", "#FFFFFF")
-    text_element.setProperty("textSize", "18sp")
-
-    button_element = UIElement("button", 100, 200, 160, 60)
-    button_element.setProperty("text", "Presionar")
-    button_element.setProperty("backgroundColor", "#03DAC6")
-    button_element.setProperty("textColor", "#000000")
-
-    if hasattr(window, "code_generator") and window.code_generator:
-        window.code_generator.addElement(rect_element)
-        window.code_generator.addElement(text_element)
-        window.code_generator.addElement(button_element)
-
-    if hasattr(window, "layers_list"):
-        window.layers_list.addItem("Rectángulo (View)")
-        window.layers_list.addItem("Texto (TextView)")
-        window.layers_list.addItem("Botón (Button)")
-
-    sys.exit(app.exec())
+ #   sys.exit(app.exec())
