@@ -1,6 +1,6 @@
 import sys
 from PySide6.QtWidgets import QApplication, QMainWindow, QStackedWidget
-from PySide6.QtCore import QSettings, Qt, QSize
+from PySide6.QtCore import QSettings, Qt, QSize, Signal
 from PySide6.QtGui import QFont
 from ui.auth_window import AuthWindow, RegisterWindow
 from ui.main_app import MainApp
@@ -8,6 +8,8 @@ from ui.entorno_java import IllustratorWindow
 from config.database import SupabaseClient
 
 class AppManager(QMainWindow):
+    
+    project_opened = Signal(str, str, str)
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Creators App")
@@ -19,6 +21,9 @@ class AppManager(QMainWindow):
         self.main_app = MainApp(self.show_auth, self.show_entorno_java)
         self.auth = AuthWindow(self.stack, self.handle_login_success) 
         self.register = RegisterWindow(self.stack)
+        
+        
+        self.entorno_java = None  
 
         self.stack.addWidget(self.auth)
         self.stack.addWidget(self.register)
@@ -28,7 +33,6 @@ class AppManager(QMainWindow):
         self.show_auth()
 
         self.load_window_state()
-
     def set_auth_window_size(self):
         """Tamaño pequeño fijo para auth (800x600)"""
         self.setFixedSize(800, 600)

@@ -1,4 +1,5 @@
 import json
+import sys 
 import os
 import datetime
 from pathlib import Path
@@ -733,7 +734,7 @@ class AndroidSetupWidget(ProjectSetupWidget):
         )
         self.entorno_window.show()
         
-        # Cerrar la ventana principal en lugar de solo ocultarla
+     
         if hasattr(self, 'parent') and self.parent():
             main_window = self.parent()
             while main_window.parent() is not None:
@@ -888,10 +889,11 @@ class AndroidSetupWidget(ProjectSetupWidget):
             project_language=lang
         )
         entorno_window.show()
-        # Cerrar la ventana principal
+    
         main_app.parent().close()
 
 class ProjectListWidget(QWidget):
+    project_opened_signal = Signal(str, str, str) 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.projects_dir = Path.home() / ".myapp_projects"
@@ -1056,7 +1058,30 @@ class ProjectListWidget(QWidget):
         for i in range(self.project_list.count()):
             item = self.project_list.item(i)
             item.setHidden(text.lower() not in item.text().lower())
-    
+    def open_project_folder(self):
+        selected = self.project_list.currentItem()
+        if not selected:
+            QMessageBox.warning(self, "Advertencia", "Selecciona un proyecto primero")
+            return
+            
+        project_data = selected.data(Qt.UserRole)
+        if isinstance(project_data, str):
+            return
+            
+        try:
+            path = Path(project_data["path"])
+            if path.exists():
+                if os.name == 'nt':
+                    os.startfile(path)
+                elif os.name == 'posix': 
+                    if sys.platform == 'darwin': 
+                        subprocess.run(['open', path])
+                    else:
+                        subprocess.run(['xdg-open', path])
+            else:
+                QMessageBox.warning(self, "Advertencia", "La ubicación del proyecto no existe")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo abrir la ubicación:\n{str(e)}")
     def delete_selected_project(self):
         selected = self.project_list.currentItem()
         if not selected:
@@ -1110,13 +1135,7 @@ class ProjectListWidget(QWidget):
                 os.makedirs(default_path, exist_ok=True)
                 project_path = os.path.abspath(default_path)
 
-            # Emitir señal en lugar de crear la ventana directamente
-            main_window = self.parent()
-            while hasattr(main_window, 'parent') and main_window.parent() is not None:
-                main_window = main_window.parent()
-            
-            if hasattr(main_window, 'project_opened'):
-                main_window.project_opened.emit(project_name, project_path, project_language)
+            self.project_opened_signal.emit(project_name, project_path, project_language)
                 
         except Exception as e:
             print(f"Error al abrir proyecto: {e}")
@@ -1139,25 +1158,7 @@ class ProjectListWidget(QWidget):
             pass
         return "Java"  
     
-    def open_project_folder(self):
-        selected = self.project_list.currentItem()
-        if not selected:
-            QMessageBox.warning(self, "Advertencia", "Selecciona un proyecto primero")
-            return
-            
-        project_data = selected.data(Qt.UserRole)
-        if isinstance(project_data, str):
-            return
-            
-        try:
-            path = Path(project_data["path"])
-            if path.exists():
-                os.startfile(path) 
-            else:
-                QMessageBox.warning(self, "Advertencia", "La ubicación del proyecto no existe")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"No se pudo abrir la ubicación:\n{str(e)}")
-            
+    
 class MainApp(QWidget):
     project_opened = Signal(str, str, str)  
     def __init__(self, on_logout, show_entorno_callback):
@@ -1165,19 +1166,16 @@ class MainApp(QWidget):
         self.on_logout = on_logout
         self.show_entorno = show_entorno_callback
         self.setup_ui()
-        self.project_opened.connect(self.show_entorno)
+        
+        
+        self.right_panel.project_opened_signal.connect(self.handle_project_opened)
 
-    def open_project(self, item):
-        project_data = item.data(Qt.UserRole)
-        if not project_data or isinstance(project_data, str):
-            return
-        try:
-            project_name = project_data["name"]
-            project_path = project_data["path"]
-            project_language = self.load_project_language(project_name, project_path)
-            self.project_opened.emit(project_name, project_path, project_language)
-        except Exception as e:
-            print(f"Error al abrir proyecto: {e}")  
+    def handle_project_opened(self, project_name, project_path, project_language):
+        """Maneja la señal de proyecto abierto"""
+        print(f"Proyecto seleccionado: {project_name}, {project_path}, {project_language}")
+        self.show_entorno(project_name, project_path, project_language)
+
+   
               
     def setup_ui(self):
         self.setMinimumSize(1000, 650)
@@ -1331,15 +1329,10 @@ if __name__ == "__main__":
             project_language=lang
         )
         entorno_window.show()
-
-    main_app = MainApp(on_logout, open_illustrator_window)
-    window = QMainWindow()
-    window.setCentralWidget(main_app)
-    window.setMinimumSize(1000, 650)
-    window.resize(1200, 800)
-    window.show()
-
-    sys.exit(app.exec())
+    
+        main_window = QApplication.activeWindow()
+        if main_window and hasattr(main_window, 'close'):
+            main_window.close()
 
 class LanguageInstallDialog(QDialog):
     def __init__(self, parent=None):

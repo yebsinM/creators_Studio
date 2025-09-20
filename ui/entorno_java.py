@@ -1839,29 +1839,27 @@ class IllustratorWindow(QMainWindow):
 
     def setup_enhanced_docks(self):
         """Configuración mejorada de docks inspirada en MainWindow"""
-        # Reorganizar docks con disposición inicial más limpia
+
         self.removeDockWidget(self.tool_panel)
         self.removeDockWidget(self.layers_panel)
         self.removeDockWidget(self.color_panel)
         self.removeDockWidget(self.ai_panel)
         self.removeDockWidget(self.file_explorer_panel)
         
-        # Añadir docks en disposición organizada
+   
         self.addDockWidget(Qt.LeftDockWidgetArea, self.tool_panel)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.layers_panel)
         self.addDockWidget(Qt.RightDockWidgetArea, self.color_panel)
         self.addDockWidget(Qt.RightDockWidgetArea, self.ai_panel)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.file_explorer_panel)
         
-        # Para el panel de propiedades (si decides activarlo después)
         # self.addDockWidget(Qt.RightDockWidgetArea, self.properties_panel)
         
-        # Tabificar paneles relacionados
+ 
         self.tabifyDockWidget(self.tool_panel, self.layers_panel)
         self.tabifyDockWidget(self.tool_panel, self.file_explorer_panel)
         self.tabifyDockWidget(self.color_panel, self.ai_panel)
-        
-        # Mostrar el primer panel de cada grupo de tabs
+    
         self.tool_panel.raise_()
         self.color_panel.raise_()
     def open_android_designer(self):
