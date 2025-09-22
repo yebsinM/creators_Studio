@@ -1839,27 +1839,35 @@ class IllustratorWindow(QMainWindow):
 
     def setup_enhanced_docks(self):
         """Configuración mejorada de docks inspirada en MainWindow"""
-
-        self.removeDockWidget(self.tool_panel)
-        self.removeDockWidget(self.layers_panel)
-        self.removeDockWidget(self.color_panel)
-        self.removeDockWidget(self.ai_panel)
-        self.removeDockWidget(self.file_explorer_panel)
         
-   
+        # Lista de todos los docks posibles
+        all_docks = [
+            self.tool_panel, self.layers_panel, self.color_panel,
+            self.ai_panel, self.file_explorer_panel
+        ]
+        
+        # Añadir paragraph_panel solo si existe
+        if hasattr(self, 'paragraph_panel') and self.paragraph_panel:
+            all_docks.append(self.paragraph_panel)
+        
+        # Remover todos los docks existentes
+        for dock in all_docks:
+            if dock and dock in self.findChildren(QDockWidget):
+                self.removeDockWidget(dock)
+        
+        # Añadir docks en posiciones específicas
         self.addDockWidget(Qt.LeftDockWidgetArea, self.tool_panel)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.layers_panel)
         self.addDockWidget(Qt.RightDockWidgetArea, self.color_panel)
         self.addDockWidget(Qt.RightDockWidgetArea, self.ai_panel)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.file_explorer_panel)
         
-        # self.addDockWidget(Qt.RightDockWidgetArea, self.properties_panel)
-        
- 
+        # Agrupar docks relacionados
         self.tabifyDockWidget(self.tool_panel, self.layers_panel)
         self.tabifyDockWidget(self.tool_panel, self.file_explorer_panel)
         self.tabifyDockWidget(self.color_panel, self.ai_panel)
-    
+        
+        # Traer al frente los docks principales
         self.tool_panel.raise_()
         self.color_panel.raise_()
     def open_android_designer(self):
@@ -2224,13 +2232,18 @@ class IllustratorWindow(QMainWindow):
         character_widget = QWidget()
         character_widget.setLayout(QVBoxLayout())
         self.character_panel.setWidget(character_widget)
-
     def create_paragraph_panel(self):
         self.paragraph_panel = QDockWidget("Párrafo", self)
+        self.paragraph_panel.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
+        self.paragraph_panel.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetClosable)
+        
         paragraph_widget = QWidget()
         paragraph_widget.setLayout(QVBoxLayout())
         self.paragraph_panel.setWidget(paragraph_widget)
-
+        
+        # Añadir el panel al área de docks (pero mantenerlo oculto inicialmente)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.paragraph_panel)
+        self.paragraph_panel.setVisible(False)  # Oculto por defecto
     def create_ai_panel(self):
         self.ai_panel = EnhancedAIChatPanel(self.code_generator, self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.ai_panel)
@@ -2306,7 +2319,7 @@ class IllustratorWindow(QMainWindow):
         panels_menu.addAction(self.color_panel.toggleViewAction())
         panels_menu.addAction(self.ai_panel.toggleViewAction())
         panels_menu.addAction(self.file_explorer_panel.toggleViewAction())
-        
+        panels_menu.addAction(self.paragraph_panel.toggleViewAction())
         # Submenú para workspace presets
         workspace_menu = view_menu.addMenu("Espacio de Trabajo")
         for preset_name in self.workspace_presets.keys():
@@ -2360,11 +2373,10 @@ class IllustratorWindow(QMainWindow):
             all_panels = {
                 "Tools": self.tool_panel,
                 "Layers": self.layers_panel,
-               # "Properties": self.properties_panel,
                 "Color": self.color_panel,
                 "Brushes": self.brushes_panel,
                 "Character": self.character_panel,
-                "Paragraph": self.paragraph_panel,
+                "Paragraph": self.paragraph_panel,  # ← Asegúrate de que esté aquí
                 "AI Assistant": self.ai_panel,
                 "File Explorer": self.file_explorer_panel
             }
