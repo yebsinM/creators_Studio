@@ -17,8 +17,9 @@ from PySide6.QtWidgets import (
     QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsItem, QSlider,
     QFileDialog, QScrollArea, QGroupBox, QRadioButton, QCheckBox,
     QSizePolicy, QTabWidget, QTextEdit, QDialog,
-    QPlainTextEdit, QListWidgetItem 
+    QPlainTextEdit, QListWidgetItem, QStyledItemDelegate   # <-- agrega esto
 )
+
 
 from PySide6.QtGui import (
     QIcon, QAction, QCursor, QColor, QBrush, QTextCursor, QFont,
@@ -29,10 +30,261 @@ from PySide6.QtCore import (
     Signal as pyqtSignal, QEvent, QTimer, QRect, QRegularExpression 
 )
 
-
 project_root = Path(__file__).parent.parent
 env_path = project_root / '.env'
 load_dotenv(env_path)
+
+class FileType:
+    def __init__(self, name, extensions, icon, template):
+        self.name = name
+        self.extensions = extensions
+        self.icon = icon
+        self.template = template
+
+class NewFileDialog(QDialog):
+    def __init__(self, project_language, parent=None):
+        super().__init__(parent)
+        self.project_language = project_language
+        self.selected_type = None
+        self.setup_ui()
+        
+    def setup_ui(self):
+        self.setWindowTitle("Nuevo Archivo")
+        self.setFixedSize(500, 400)
+        
+        layout = QVBoxLayout(self)
+        
+        # Título
+        title_label = QLabel("Seleccione el tipo de archivo:")
+        title_label.setStyleSheet("font-size: 14px; font-weight: bold; margin: 10px;")
+        layout.addWidget(title_label)
+        
+        # Lista de tipos de archivo
+        self.file_types_list = QListWidget()
+        self.file_types_list.itemDoubleClicked.connect(self.accept_selection)
+        layout.addWidget(self.file_types_list)
+        
+        # Campos para nombre del archivo
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Nombre:"))
+        self.filename_input = QLineEdit()
+        self.filename_input.textChanged.connect(self.update_preview)
+        name_layout.addWidget(self.filename_input)
+        layout.addLayout(name_layout)
+        
+        # Vista previa
+        preview_label = QLabel("Vista previa:")
+        preview_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        layout.addWidget(preview_label)
+        
+        self.preview_editor = QPlainTextEdit()
+        self.preview_editor.setReadOnly(True)
+        self.preview_editor.setFixedHeight(150)
+        self.preview_editor.setStyleSheet("font-family: Consolas; font-size: 10px;")
+        layout.addWidget(self.preview_editor)
+        
+        # Botones
+        button_layout = QHBoxLayout()
+        create_btn = QPushButton("Crear")
+        create_btn.clicked.connect(self.accept_selection)
+        cancel_btn = QPushButton("Cancelar")
+        cancel_btn.clicked.connect(self.reject)
+        
+        button_layout.addWidget(create_btn)
+        button_layout.addWidget(cancel_btn)
+        layout.addLayout(button_layout)
+        
+        self.load_file_types()
+        
+    def load_file_types(self):
+        # Definir tipos de archivo basados en el lenguaje del proyecto
+        file_types = []
+        
+        if self.project_language.lower() == "java":
+            file_types = [
+                FileType(
+                    "Clase Java", 
+                    [".java"], 
+                    "⚙️", 
+                    "public class {class_name} {\n    // TODO: Agregar código aquí\n}"
+                ),
+                FileType(
+                    "Interface Java", 
+                    [".java"], 
+                    "🔌", 
+                    "public interface {interface_name} {\n    // TODO: Definir métodos\n}"
+                ),
+                FileType(
+                    "Activity Android", 
+                    [".java"], 
+                    "📱", 
+                    "public class {class_name} extends AppCompatActivity {\n    @Override\n    protected void onCreate(Bundle savedInstanceState) {\n        super.onCreate(savedInstanceState);\n        setContentView(R.layout.{layout_name});\n    }\n}"
+                )
+            ]
+        elif self.project_language.lower() == "kotlin":
+            file_types = [
+                FileType(
+                    "Clase Kotlin", 
+                    [".kt"], 
+                    "⚙️", 
+                    "class {class_name} {\n    // TODO: Agregar código aquí\n}"
+                ),
+                FileType(
+                    "Activity Kotlin", 
+                    [".kt"], 
+                    "📱", 
+                    "class {class_name} : AppCompatActivity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        setContentView(R.layout.{layout_name})\n    }\n}"
+                )
+            ]
+        elif self.project_language.lower() == "flutter":
+            file_types = [
+                FileType(
+                    "Widget Flutter", 
+                    [".dart"], 
+                    "🎯", 
+                    "class {class_name} extends StatelessWidget {\n  @override\n  Widget build(BuildContext context) {\n    return Container();\n  }\n}"
+                ),
+                FileType(
+                    "Stateful Widget", 
+                    [".dart"], 
+                    "🔄", 
+                    "class {class_name} extends StatefulWidget {\n  @override\n  _${class_name}State createState() => _${class_name}State();\n}\n\nclass _${class_name}State extends State<{class_name}> {\n  @override\n  Widget build(BuildContext context) {\n    return Container();\n  }\n}"
+                )
+            ]
+        
+        # Tipos de archivo comunes para todos los lenguajes
+        common_types = [
+            FileType(
+                "Layout XML", 
+                [".xml"], 
+                "📐", 
+                '<?xml version="1.0" encoding="utf-8"?>\n<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"\n    android:layout_width="match_parent"\n    android:layout_height="match_parent"\n    android:orientation="vertical">\n    \n</LinearLayout>'
+            ),
+            FileType(
+                "Recursos XML", 
+                [".xml"], 
+                "🎨", 
+                '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <!-- Agregar recursos aquí -->\n</resources>'
+            ),
+            FileType(
+                "Archivo de Texto", 
+                [".txt"], 
+                "📄", 
+                ""
+            ),
+            FileType(
+                "Archivo JSON", 
+                [".json"], 
+                "🔷", 
+                "{\n    \"key\": \"value\"\n}"
+            )
+        ]
+        
+        file_types.extend(common_types)
+        
+        for file_type in file_types:
+            item = QListWidgetItem(f"{file_type.icon} {file_type.name} ({', '.join(file_type.extensions)})")
+            item.setData(Qt.UserRole, file_type)
+            self.file_types_list.addItem(item)
+        
+        self.file_types_list.setCurrentRow(0)
+        
+    def accept_selection(self):
+        current_item = self.file_types_list.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, "Error", "Seleccione un tipo de archivo")
+            return
+            
+        filename = self.filename_input.text().strip()
+        if not filename:
+            QMessageBox.warning(self, "Error", "Ingrese un nombre para el archivo")
+            return
+            
+        self.selected_type = current_item.data(Qt.UserRole)
+        self.selected_filename = filename
+        self.accept()
+        
+    def update_preview(self):
+        current_item = self.file_types_list.currentItem()
+        if not current_item:
+            return
+            
+        file_type = current_item.data(Qt.UserRole)
+        filename = self.filename_input.text().strip()
+        
+        if not filename:
+            self.preview_editor.setPlainText("")
+            return
+            
+        # Generar vista previa basada en la plantilla
+        preview = file_type.template
+        
+        # Reemplazar placeholders
+        class_name = filename.replace(" ", "").replace(".java", "").replace(".kt", "").replace(".dart", "")
+        preview = preview.replace("{class_name}", class_name)
+        preview = preview.replace("{interface_name}", class_name)
+        preview = preview.replace("{layout_name}", class_name.lower())
+        
+        self.preview_editor.setPlainText(preview)
+
+# Modificar la clase IllustratorWindow - Añadir este método después de create_menu_bar
+def new_file_with_template(self):
+    """Crea un nuevo archivo con selección de tipo"""
+    dialog = NewFileDialog(self.project_language, self)
+    if dialog.exec_() == QDialog.Accepted:
+        file_type = dialog.selected_type
+        filename = dialog.selected_filename
+        
+        # Añadir extensión si no tiene
+        if not any(filename.endswith(ext) for ext in file_type.extensions):
+            filename += file_type.extensions[0]
+        
+        file_path = os.path.join(self.project_path, filename)
+        
+        # Verificar si el archivo ya existe
+        if os.path.exists(file_path):
+            reply = QMessageBox.question(
+                self,
+                "Archivo existente",
+                f"El archivo {filename} ya existe. ¿Desea reemplazarlo?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                return
+        
+        # Crear el archivo con la plantilla
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                # Generar contenido basado en la plantilla
+                content = file_type.template
+                class_name = filename.replace(" ", "").replace(".java", "").replace(".kt", "").replace(".dart", "")
+                content = content.replace("{class_name}", class_name)
+                content = content.replace("{interface_name}", class_name)
+                content = content.replace("{layout_name}", class_name.lower())
+                
+                f.write(content)
+            
+            # Actualizar el explorador de archivos
+            self.file_model.setRootPath(self.project_path)
+            
+            # Abrir el archivo en el editor
+            self.open_file_in_tab(file_path)
+            
+            self.statusBar().showMessage(f"Archivo {filename} creado exitosamente", 3000)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo crear el archivo:\n{str(e)}")
+
+# Modificar el método create_menu_bar para usar el nuevo diálogo
+def create_menu_bar(self):
+    menubar = self.menuBar()
+    
+    file_menu = menubar.addMenu("Archivo")
+    
+    new_action = QAction("Nuevo Archivo", self)
+    new_action.setShortcut("Ctrl+N")
+    new_action.triggered.connect(self.new_file_with_template)  # Cambiar esta línea
+    file_menu.addAction(new_action)
 
 class AIProvider:
     """Clase base para proveedores de IA"""
@@ -1793,6 +2045,27 @@ class AIResponseEvent(QEvent):
         self.response = response
         self.is_error = is_error
 
+# Crear un delegate personalizado para los iconos
+class FileIconDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.icon_map = {
+            '.java': '⚙️', '.kt': '⚙️', '.dart': '🎯',
+            '.xml': '📐', '.json': '🔷', '.txt': '📄',
+            '.gradle': '📦', '.kts': '📦'
+        }
+    
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        if index.column() == 0:
+            file_path = index.model().filePath(index)
+            _, ext = os.path.splitext(file_path)
+            icon_text = self.icon_map.get(ext.lower(), '📁')
+            option.text = f"{icon_text} {option.text}"
+
+        # Aplicar el delegate
+        delegate = FileIconDelegate(self.file_tree)
+        self.file_tree.setItemDelegateForColumn(0, delegate)
 class IllustratorWindow(QMainWindow):
     closed = Signal()
     
@@ -2285,6 +2558,8 @@ class IllustratorWindow(QMainWindow):
         # Ocultar columnas innecesarias (más simple)
         for i in range(1, 4):  # Columnas 1, 2 y 3
             self.file_tree.hideColumn(i)
+
+        self.file_tree.setIconSize(QSize(16, 16))
         # ===== FIN CONFIGURACIÓN SIMPLIFICADA =====
         
         layout.addWidget(self.file_tree)
@@ -2729,3 +3004,5 @@ class IllustratorWindow(QMainWindow):
 #        window.layers_list.addItem("Botón (Button)")
 
  #   sys.exit(app.exec())
+
+ 
