@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsItem, QSlider,
     QFileDialog, QScrollArea, QGroupBox, QRadioButton, QCheckBox,
     QSizePolicy, QTabWidget, QTextEdit, QDialog,
-    QPlainTextEdit, QListWidgetItem, QStyledItemDelegate   # <-- agrega esto
+    QPlainTextEdit, QListWidgetItem, QStyledItemDelegate 
 )
 
 
@@ -54,17 +54,17 @@ class NewFileDialog(QDialog):
         
         layout = QVBoxLayout(self)
         
-        # Título
+      
         title_label = QLabel("Seleccione el tipo de archivo:")
         title_label.setStyleSheet("font-size: 14px; font-weight: bold; margin: 10px;")
         layout.addWidget(title_label)
         
-        # Lista de tipos de archivo
+       
         self.file_types_list = QListWidget()
         self.file_types_list.itemDoubleClicked.connect(self.accept_selection)
         layout.addWidget(self.file_types_list)
         
-        # Campos para nombre del archivo
+      
         name_layout = QHBoxLayout()
         name_layout.addWidget(QLabel("Nombre:"))
         self.filename_input = QLineEdit()
@@ -72,7 +72,7 @@ class NewFileDialog(QDialog):
         name_layout.addWidget(self.filename_input)
         layout.addLayout(name_layout)
         
-        # Vista previa
+      
         preview_label = QLabel("Vista previa:")
         preview_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         layout.addWidget(preview_label)
@@ -82,8 +82,7 @@ class NewFileDialog(QDialog):
         self.preview_editor.setFixedHeight(150)
         self.preview_editor.setStyleSheet("font-family: Consolas; font-size: 10px;")
         layout.addWidget(self.preview_editor)
-        
-        # Botones
+ 
         button_layout = QHBoxLayout()
         create_btn = QPushButton("Crear")
         create_btn.clicked.connect(self.accept_selection)
@@ -97,7 +96,7 @@ class NewFileDialog(QDialog):
         self.load_file_types()
         
     def load_file_types(self):
-        # Definir tipos de archivo basados en el lenguaje del proyecto
+
         file_types = []
         
         if self.project_language.lower() == "java":
@@ -152,7 +151,7 @@ class NewFileDialog(QDialog):
                 )
             ]
         
-        # Tipos de archivo comunes para todos los lenguajes
+
         common_types = [
             FileType(
                 "Layout XML", 
@@ -215,11 +214,10 @@ class NewFileDialog(QDialog):
         if not filename:
             self.preview_editor.setPlainText("")
             return
-            
-        # Generar vista previa basada en la plantilla
+         
         preview = file_type.template
         
-        # Reemplazar placeholders
+    
         class_name = filename.replace(" ", "").replace(".java", "").replace(".kt", "").replace(".dart", "")
         preview = preview.replace("{class_name}", class_name)
         preview = preview.replace("{interface_name}", class_name)
@@ -227,21 +225,18 @@ class NewFileDialog(QDialog):
         
         self.preview_editor.setPlainText(preview)
 
-# Modificar la clase IllustratorWindow - Añadir este método después de create_menu_bar
 def new_file_with_template(self):
     """Crea un nuevo archivo con selección de tipo"""
     dialog = NewFileDialog(self.project_language, self)
     if dialog.exec_() == QDialog.Accepted:
         file_type = dialog.selected_type
         filename = dialog.selected_filename
-        
-        # Añadir extensión si no tiene
+
         if not any(filename.endswith(ext) for ext in file_type.extensions):
             filename += file_type.extensions[0]
         
         file_path = os.path.join(self.project_path, filename)
-        
-        # Verificar si el archivo ya existe
+
         if os.path.exists(file_path):
             reply = QMessageBox.question(
                 self,
@@ -251,11 +246,10 @@ def new_file_with_template(self):
             )
             if reply == QMessageBox.No:
                 return
-        
-        # Crear el archivo con la plantilla
+
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
-                # Generar contenido basado en la plantilla
+
                 content = file_type.template
                 class_name = filename.replace(" ", "").replace(".java", "").replace(".kt", "").replace(".dart", "")
                 content = content.replace("{class_name}", class_name)
@@ -263,11 +257,9 @@ def new_file_with_template(self):
                 content = content.replace("{layout_name}", class_name.lower())
                 
                 f.write(content)
-            
-            # Actualizar el explorador de archivos
+
             self.file_model.setRootPath(self.project_path)
-            
-            # Abrir el archivo en el editor
+
             self.open_file_in_tab(file_path)
             
             self.statusBar().showMessage(f"Archivo {filename} creado exitosamente", 3000)
@@ -275,7 +267,6 @@ def new_file_with_template(self):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo crear el archivo:\n{str(e)}")
 
-# Modificar el método create_menu_bar para usar el nuevo diálogo
 def create_menu_bar(self):
     menubar = self.menuBar()
     
@@ -283,7 +274,7 @@ def create_menu_bar(self):
     
     new_action = QAction("Nuevo Archivo", self)
     new_action.setShortcut("Ctrl+N")
-    new_action.triggered.connect(self.new_file_with_template)  # Cambiar esta línea
+    new_action.triggered.connect(self.new_file_with_template)  
     file_menu.addAction(new_action)
 
 class AIProvider:

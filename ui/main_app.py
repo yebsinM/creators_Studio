@@ -1082,6 +1082,7 @@ class ProjectListWidget(QWidget):
                 QMessageBox.warning(self, "Advertencia", "La ubicación del proyecto no existe")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo abrir la ubicación:\n{str(e)}")
+
     def delete_selected_project(self):
         selected = self.project_list.currentItem()
         if not selected:
@@ -1097,29 +1098,82 @@ class ProjectListWidget(QWidget):
             "Confirmar eliminación",
             f"¿Estás seguro de querer eliminar el proyecto '{project_data['name']}'?\n\n"
             f"Ubicación: {project_data['path']}\n\n"
-            "Esta acción no puede deshacerse.",
-            QMessageBox.Yes | QMessageBox.No
+            "⚠️ Esta acción ELIMINARÁ TODOS LOS ARCHIVOS del proyecto y no puede deshacerse.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No  
         )
         
         if reply == QMessageBox.Yes:
             try:
+                project_path = Path(project_data["path"])
+                
+              
+                if project_path.exists():
+                    import shutil
+                    try:
+                        shutil.rmtree(project_path)
+                        files_deleted = True
+                    except Exception as e:
+                        QMessageBox.warning(
+                            self, 
+                            "Advertencia", 
+                            f"No se pudieron eliminar todos los archivos:\n{str(e)}\n\n"
+                            "Pero se eliminará la referencia del proyecto."
+                        )
+                        files_deleted = False
+                else:
+                    files_deleted = False
+                    QMessageBox.information(
+                        self,
+                        "Proyecto no encontrado",
+                        "La carpeta del proyecto no existe en el sistema.\n"
+                        "Solo se eliminará la referencia del proyecto."
+                    )
+                
+                # 2. Eliminar la referencia del archivo rutas.txt
                 path_manager.remove_project(project_data["name"], project_data["path"])
- 
+                
+                # 3. Eliminar el archivo JSON de metadatos
                 projects_dir = Path.home() / ".myapp_projects"
+                json_deleted = False
                 for file in projects_dir.glob("*.json"):
                     try:
                         with open(file, 'r', encoding='utf-8') as f:
                             json_data = json.load(f)
-                            if json_data.get("name") == project_data["name"] and json_data.get("location_path") == project_data["path"]:
+                            if (json_data.get("name") == project_data["name"] and 
+                                json_data.get("location_path") == project_data["path"]):
                                 os.remove(file)
+                                json_deleted = True
                                 break
                     except:
                         continue
                 
+                # 4. Actualizar la lista
                 self.load_projects()
-                QMessageBox.information(self, "Éxito", "Proyecto eliminado correctamente")
+                
+                # 5. Mostrar resultado
+                if files_deleted:
+                    QMessageBox.information(
+                        self, 
+                        "Éxito", 
+                        "Proyecto eliminado completamente:\n"
+                        "✓ Archivos físicos eliminados\n"
+                        "✓ Referencias removidas"
+                    )
+                else:
+                    QMessageBox.information(
+                        self, 
+                        "Éxito parcial", 
+                        "Referencia del proyecto eliminada.\n"
+                        "Los archivos físicos ya no existían o no se pudieron eliminar."
+                    )
+                    
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"No se pudo eliminar el proyecto:\n{str(e)}")
+                QMessageBox.critical(
+                    self, 
+                    "Error", 
+                    f"No se pudo eliminar el proyecto completamente:\n{str(e)}"
+                )
     def open_project(self, item):
         project_data = item.data(Qt.UserRole)
         if not project_data or isinstance(project_data, str):
