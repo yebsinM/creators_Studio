@@ -1835,41 +1835,63 @@ class IllustratorWindow(QMainWindow):
         self.setup_enhanced_docks()
 
         self.create_menu_bar()
+        # Configurar características específicas del lenguaje
         self.setup_language_specific_features()
 
+    def setup_language_specific_features(self):
+        """Configura las características específicas según el lenguaje del proyecto"""
+        if self.project_language.lower() == "java":
+            self.setup_java_features()
+        elif self.project_language.lower() == "kotlin":
+            self.setup_kotlin_features()
+        elif self.project_language.lower() == "flutter":
+            self.setup_flutter_features()
+        else:
+            # Configuración por defecto para Java si no se reconoce el lenguaje
+            self.setup_java_features()
+
     def setup_enhanced_docks(self):
-        """Configuración mejorada de docks inspirada en MainWindow"""
+        """Configuración mejorada de docks - todos inician cerrados"""
         
-        # Lista de todos los docks posibles
-        all_docks = [
-            self.tool_panel, self.layers_panel, self.color_panel,
-            self.ai_panel, self.file_explorer_panel
+        # Remover todos los docks existentes primero
+        existing_docks = self.findChildren(QDockWidget)
+        for dock in existing_docks:
+            self.removeDockWidget(dock)
+        
+        # Añadir todos los docks pero OCULTOS
+        docks_to_add = [
+            (Qt.LeftDockWidgetArea, self.tool_panel),
+            (Qt.LeftDockWidgetArea, self.layers_panel),
+            (Qt.LeftDockWidgetArea, self.file_explorer_panel),
+            (Qt.RightDockWidgetArea, self.color_panel),
+            (Qt.RightDockWidgetArea, self.ai_panel)
         ]
         
-        # Añadir paragraph_panel solo si existe
+        # Añadir paneles adicionales si existen
+        if hasattr(self, 'character_panel') and self.character_panel:
+            docks_to_add.append((Qt.BottomDockWidgetArea, self.character_panel))
+        
         if hasattr(self, 'paragraph_panel') and self.paragraph_panel:
-            all_docks.append(self.paragraph_panel)
+            docks_to_add.append((Qt.BottomDockWidgetArea, self.paragraph_panel))
         
-        # Remover todos los docks existentes
-        for dock in all_docks:
-            if dock and dock in self.findChildren(QDockWidget):
-                self.removeDockWidget(dock)
+        if hasattr(self, 'brushes_panel') and self.brushes_panel:
+            docks_to_add.append((Qt.BottomDockWidgetArea, self.brushes_panel))
         
-        # Añadir docks en posiciones específicas
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.tool_panel)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.layers_panel)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.color_panel)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.ai_panel)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.file_explorer_panel)
+        # Añadir todos los docks ocultos
+        for area, dock in docks_to_add:
+            if dock:
+                self.addDockWidget(area, dock)
+                dock.setVisible(False)  # ← ESTA ES LA CLAVE: OCULTAR AL INICIAR
         
-        # Agrupar docks relacionados
+        # Agrupar algunos docks relacionados (aunque estén ocultos)
         self.tabifyDockWidget(self.tool_panel, self.layers_panel)
         self.tabifyDockWidget(self.tool_panel, self.file_explorer_panel)
         self.tabifyDockWidget(self.color_panel, self.ai_panel)
         
-        # Traer al frente los docks principales
-        self.tool_panel.raise_()
-        self.color_panel.raise_()
+        # Si existen paneles de texto, agruparlos también
+        if hasattr(self, 'character_panel') and hasattr(self, 'paragraph_panel'):
+            if self.character_panel and self.paragraph_panel:
+                self.tabifyDockWidget(self.character_panel, self.paragraph_panel)
     def open_android_designer(self):
         """Abre la ventana de diseñador Android"""
         if 'designer' not in self.open_windows:
@@ -2035,10 +2057,9 @@ class IllustratorWindow(QMainWindow):
         
         self.main_layout.addWidget(self.tab_widget)
         
- 
+        # Crear todos los paneles (pero iniciarán ocultos)
         self.create_tool_panel()
         self.create_layers_panel()
-        #self.create_properties_panel()
         self.create_color_panel()
         self.create_brushes_panel()
         self.create_character_panel()
@@ -2048,16 +2069,13 @@ class IllustratorWindow(QMainWindow):
         
         self.create_menu_bar()
         
+        # Configurar docks - TODOS OCULTOS
+        self.setup_enhanced_docks()
+        
         self.statusBar().showMessage("Ready | Zoom: 100%")
-        self.apply_workspace_preset(self.current_preset)
-
-    def setup_language_specific_features(self):
-        if self.project_language == "Java":
-            self.setup_java_features()
-        elif self.project_language == "Kotlin":
-            self.setup_kotlin_features()
-        elif self.project_language == "Dart (Flutter)":
-            self.setup_flutter_features()
+        
+        # NO aplicar ningún preset al inicio (todos cerrados)
+        # self.apply_workspace_preset(self.current_preset)
 
     def setup_java_features(self):
         self.setWindowTitle(f"Creators Studio - {self.project_name} [Java]")
@@ -2370,30 +2388,26 @@ class IllustratorWindow(QMainWindow):
             preset = self.workspace_presets[preset_name]
             self.current_preset = preset_name
 
+            # Primero ocultar todos los paneles
             all_panels = {
                 "Tools": self.tool_panel,
                 "Layers": self.layers_panel,
                 "Color": self.color_panel,
                 "Brushes": self.brushes_panel,
                 "Character": self.character_panel,
-                "Paragraph": self.paragraph_panel,  # ← Asegúrate de que esté aquí
+                "Paragraph": self.paragraph_panel,
                 "AI Assistant": self.ai_panel,
                 "File Explorer": self.file_explorer_panel
             }
             
-    #        for panel_name, panel in all_panels.items():
-    #            if panel:
-    #                panel.setVisible(False)
+            for panel_name, panel in all_panels.items():
+                if panel:
+                    panel.setVisible(False)
             
-           
-    #        for panel_name in preset.panels:
-    #            if panel_name in all_panels and all_panels[panel_name]:
-    #                all_panels[panel_name].setVisible(True)
-    #                
-    #                if panel_name == "Tools":
-    #                    area = Qt.LeftDockWidgetArea if preset.tool_panel_pos == "left" else Qt.RightDockWidgetArea
-    #                    self.addDockWidget(area, all_panels[panel_name])
-  
+            # Mostrar solo los paneles del preset seleccionado
+            for panel_name in preset.panels:
+                if panel_name in all_panels and all_panels[panel_name]:
+                    all_panels[panel_name].setVisible(True)
     def set_tool(self, tool_id):
         self.current_tool = tool_id
         for tid, btn in self.tool_buttons.items():
