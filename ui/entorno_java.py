@@ -23,12 +23,459 @@ from PySide6.QtWidgets import (
 
 from PySide6.QtGui import (
     QIcon, QAction, QCursor, QColor, QBrush, QTextCursor, QFont,
-    QPen, QPainter, QTextFormat, QSyntaxHighlighter, QTextCharFormat, QPalette
+    QPen, QPainter, QTextFormat, QSyntaxHighlighter, QTextCharFormat, QPalette,
+    QShortcut, QKeySequence
 )
 from PySide6.QtCore import (
     Qt, QSize, QPoint, Signal, QDir, QRectF, QSettings, QThread, 
     Signal as pyqtSignal, QEvent, QTimer, QRect, QRegularExpression 
 )
+class VSCodeHighlighter(QSyntaxHighlighter):
+    """Sistema de resaltado similar a Visual Studio Code para TODOS los lenguajes"""
+    
+    def __init__(self, document, theme="dark", language="auto"):
+        super().__init__(document)
+        self.theme = theme
+        self.language = language
+        self.highlighting_rules = []
+        self.setup_theme()
+        self.setup_highlight_rules()
+    
+    def setup_theme(self):
+        """Configura los temas de colores como VS Code"""
+        if self.theme == "dark":
+            self.colors = {
+                "background": "#1e1e1e",
+                "foreground": "#d4d4d4",
+                "keywords": "#569CD6",        # Azul - palabras clave
+                "types": "#4EC9B0",          # Verde azulado - tipos
+                "strings": "#CE9178",        # Naranja claro - cadenas
+                "comments": "#6A9955",       # Verde oscuro - comentarios
+                "numbers": "#B5CEA8",        # Verde claro - números
+                "functions": "#DCDCAA",      # Amarillo claro - funciones
+                "variables": "#9CDCFE",      # Azul claro - variables
+                "constants": "#4FC1FF",      # Azul brillante - constantes
+                "operators": "#d4d4d4",      # Gris claro - operadores
+                "preprocessor": "#C586C0",   # Púrpura - preprocesador
+                "error": "#f44747",          # Rojo - errores
+                "regex": "#D16969",          # Rojo claro - expresiones regulares
+                "tags": "#569CD6",           # Azul - etiquetas HTML/XML
+                "attributes": "#9CDCFE",     # Azul claro - atributos
+                "values": "#CE9178",         # Naranja - valores
+                "classes": "#4EC9B0",        # Verde azulado - clases
+                "imports": "#C586C0",        # Púrpura - imports
+            }
+        else:  # light theme
+            self.colors = {
+                "background": "#ffffff",
+                "foreground": "#000000",
+                "keywords": "#0000ff",       # Azul
+                "types": "#267f99",          # Verde azulado
+                "strings": "#a31515",        # Rojo oscuro
+                "comments": "#008000",       # Verde
+                "numbers": "#098658",        # Verde
+                "functions": "#795e26",      # Marrón
+                "variables": "#001080",      # Azul oscuro
+                "constants": "#0070c1",      # Azul
+                "operators": "#000000",      # Negro
+                "preprocessor": "#af00db",   # Púrpura
+                "error": "#e51400",          # Rojo
+                "regex": "#811f3f",          # Rojo oscuro
+                "tags": "#800000",           # Marrón rojizo
+                "attributes": "#ff0000",     # Rojo
+                "values": "#0451a5",         # Azul
+                "classes": "#267f99",        # Verde azulado
+                "imports": "#af00db",        # Púrpura
+            }
+    
+    def create_format(self, color_name, bold=False, italic=False, underline=False):
+        """Crea un formato de texto consistente"""
+        format = QTextCharFormat()
+        format.setForeground(QColor(self.colors[color_name]))
+        if bold:
+            format.setFontWeight(QFont.Bold)
+        if italic:
+            format.setFontItalic(True)
+        if underline:
+            format.setFontUnderline(True)
+        return format
+    
+    def setup_highlight_rules(self):
+        """Configura reglas básicas de resaltado"""
+        # Comentarios
+        comment_format = self.create_format("comments", italic=True)
+        self.highlighting_rules.append((r"//[^\n]*", comment_format))
+        self.highlighting_rules.append((r"#[^\n]*", comment_format))
+        
+        # Strings
+        string_format = self.create_format("strings")
+        self.highlighting_rules.append((r'"[^"\\]*(\\.[^"\\]*)*"', string_format))
+        self.highlighting_rules.append((r"'[^'\\]*(\\.[^'\\]*)*'", string_format))
+        
+        # Números
+        number_format = self.create_format("numbers")
+        self.highlighting_rules.append((r"\b\d+\b", number_format))
+        self.highlighting_rules.append((r"\b\d+\.\d+\b", number_format))
+        
+        # Configurar según lenguaje
+        if self.language == "java":
+            self.setup_java_rules()
+        elif self.language == "xml":
+            self.setup_xml_rules()
+        # Añadir más lenguajes según necesidad
+    
+    def setup_common_rules(self):
+        """Reglas comunes a todos los lenguajes de programación"""
+        # Comentarios de una línea (comunes en muchos lenguajes)
+        comment_format = self.create_format("comments", italic=True)
+        self.highlighting_rules.append((r"//[^\n]*", comment_format))
+        self.highlighting_rules.append((r"#[^\n]*", comment_format))  # Python, Ruby, etc.
+        
+        # Números (enteros, decimales, hexadecimales, binarios)
+        number_format = self.create_format("numbers")
+        self.highlighting_rules.append((r"\b\d+\b", number_format))  # Enteros
+        self.highlighting_rules.append((r"\b\d+\.\d+\b", number_format))  # Decimales
+        self.highlighting_rules.append((r"\b0x[0-9A-Fa-f]+\b", number_format))  # Hexadecimal
+        self.highlighting_rules.append((r"\b0b[01]+\b", number_format))  # Binario
+        self.highlighting_rules.append((r"\b\d+[lLfFdD]?\b", number_format))  # Sufijos
+        
+        # Operadores matemáticos y lógicos
+        operator_format = self.create_format("operators")
+        operators = [
+            r"\=", r"\+", r"\-", r"\*", r"\/", r"\%", r"\=\=", r"\!=", r"\>", r"\<",
+            r"\>\=", r"\<\=", r"\&\&", r"\|\|", r"\!", r"\+\+", r"\-\-", r"\+=",
+            r"\-=", r"\*=", r"\/=", r"\%=", r"\<\<", r"\>\>", r"\&", r"\|", r"\^",
+            r"\~", r"\&=", r"\|=", r"\^=", r"\?", r"\:", r"\.", r"\,", r"\;"
+        ]
+        for op in operators:
+            self.highlighting_rules.append((op, operator_format))
+    
+    def setup_language_specific_rules(self):
+        """Configura reglas específicas para cada lenguaje"""
+        if self.language == "java":
+            self.setup_java_rules()
+        elif self.language == "kt":
+            self.setup_kotlin_rules()
+        elif self.language == "dart":
+            self.setup_dart_rules()
+        elif self.language == "py":
+            self.setup_python_rules()
+        elif self.language in ["js", "ts"]:
+            self.setup_javascript_rules()
+        elif self.language in ["xml", "html"]:
+            self.setup_xml_rules()
+        elif self.language == "css":
+            self.setup_css_rules()
+        elif self.language in ["cpp", "c"]:
+            self.setup_cpp_rules()
+        elif self.language == "cs":
+            self.setup_csharp_rules()
+        elif self.language == "php":
+            self.setup_php_rules()
+        elif self.language == "rb":
+            self.setup_ruby_rules()
+        elif self.language == "go":
+            self.setup_go_rules()
+        elif self.language == "rs":
+            self.setup_rust_rules()
+        elif self.language == "swift":
+            self.setup_swift_rules()
+        # Añadir más lenguajes según sea necesario
+    
+    def setup_java_rules(self):
+        """Reglas específicas para Java"""
+        keywords = [
+            "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class",
+            "const", "continue", "default", "do", "double", "else", "enum", "extends", "final",
+            "finally", "float", "for", "goto", "if", "implements", "import", "instanceof", "int",
+            "interface", "long", "native", "new", "package", "private", "protected", "public",
+            "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this",
+            "throw", "throws", "transient", "try", "void", "volatile", "while", "var", "record",
+            "sealed", "non-sealed", "permits", "yield"
+        ]
+        
+        keyword_format = self.create_format("keywords", bold=True)
+        for word in keywords:
+            pattern = r"\b" + word + r"\b"
+            self.highlighting_rules.append((pattern, keyword_format))
+        
+        # Tipos y clases comunes
+        type_format = self.create_format("types")
+        types = ["String", "Integer", "Double", "Float", "Boolean", "Object", "List", "Map", "Set",
+                "ArrayList", "HashMap", "HashSet", "Number", "Character", "Byte", "Short", "Long", "Void"]
+        for word in types:
+            self.highlighting_rules.append((r"\b" + word + r"\b", type_format))
+        
+        # Anotaciones
+        annotation_format = self.create_format("preprocessor")
+        self.highlighting_rules.append((r"@\w+", annotation_format))
+        
+        # Cadenas de texto
+        string_format = self.create_format("strings")
+        self.highlighting_rules.append((r'"[^"\\]*(\\.[^"\\]*)*"', string_format))
+        self.highlighting_rules.append((r"'[^'\\]*(\\.[^'\\]*)*'", string_format))
+        
+        # Imports
+        import_format = self.create_format("imports")
+        self.highlighting_rules.append((r"import\s+[\w\.]+;", import_format))
+    
+    def setup_kotlin_rules(self):
+        """Reglas específicas para Kotlin"""
+        keywords = [
+            "as", "as?", "break", "class", "continue", "do", "else", "false", "for", "fun", "if",
+            "in", "!in", "interface", "is", "!is", "null", "object", "package", "return", "super",
+            "this", "throw", "true", "try", "typealias", "val", "var", "when", "while", "by",
+            "catch", "constructor", "delegate", "dynamic", "field", "file", "finally", "get",
+            "import", "init", "param", "property", "receiver", "set", "setparam", "where",
+            "actual", "abstract", "annotation", "companion", "const", "crossinline", "data",
+            "enum", "expect", "external", "final", "infix", "inline", "inner", "internal",
+            "lateinit", "noinline", "open", "operator", "out", "override", "private", "protected",
+            "public", "reified", "sealed", "suspend", "tailrec", "vararg", "it"
+        ]
+        
+        keyword_format = self.create_format("keywords", bold=True)
+        for word in keywords:
+            pattern = r"\b" + word + r"\b"
+            self.highlighting_rules.append((pattern, keyword_format))
+        
+        # Template expressions en strings
+        template_format = self.create_format("variables")
+        self.highlighting_rules.append((r"\$\{.*?\}", template_format))
+        self.highlighting_rules.append((r"\$\w+", template_format))
+    
+    def setup_dart_rules(self):
+        """Reglas específicas para Dart"""
+        keywords = [
+            "abstract", "as", "assert", "async", "await", "break", "case", "catch", "class",
+            "const", "continue", "covariant", "default", "deferred", "do", "dynamic", "else",
+            "enum", "export", "extends", "extension", "external", "factory", "false", "final",
+            "finally", "for", "Function", "get", "hide", "if", "implements", "import", "in",
+            "interface", "is", "late", "library", "mixin", "new", "null", "on", "operator",
+            "part", "rethrow", "return", "set", "show", "static", "super", "switch", "sync",
+            "this", "throw", "true", "try", "typedef", "var", "void", "while", "with", "yield"
+        ]
+        
+        keyword_format = self.create_format("keywords", bold=True)
+        for word in keywords:
+            pattern = r"\b" + word + r"\b"
+            self.highlighting_rules.append((pattern, keyword_format))
+        
+        # Interpolación de strings
+        interpolation_format = self.create_format("variables")
+        self.highlighting_rules.append((r"\$\{.*?\}", interpolation_format))
+        self.highlighting_rules.append((r"\$\w+", interpolation_format))
+    
+    def setup_python_rules(self):
+        """Reglas específicas para Python"""
+        keywords = [
+            "and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del",
+            "elif", "else", "except", "False", "finally", "for", "from", "global", "if", "import",
+            "in", "is", "lambda", "None", "nonlocal", "not", "or", "pass", "raise", "return",
+            "True", "try", "while", "with", "yield"
+        ]
+        
+        keyword_format = self.create_format("keywords", bold=True)
+        for word in keywords:
+            pattern = r"\b" + word + r"\b"
+            self.highlighting_rules.append((pattern, keyword_format))
+        
+        # Decoradores
+        decorator_format = self.create_format("preprocessor")
+        self.highlighting_rules.append((r"@\w+", decorator_format))
+        
+        # Docstrings
+        docstring_format = self.create_format("strings")
+        self.highlighting_rules.append((r'"""[^"]*"""', docstring_format))
+        self.highlighting_rules.append((r"'''[^']*'''", docstring_format))
+    
+    def setup_javascript_rules(self):
+        """Reglas específicas para JavaScript/TypeScript"""
+        keywords = [
+            "break", "case", "catch", "class", "const", "continue", "debugger", "default",
+            "delete", "do", "else", "export", "extends", "finally", "for", "function", "if",
+            "import", "in", "instanceof", "new", "return", "super", "switch", "this", "throw",
+            "try", "typeof", "var", "void", "while", "with", "yield", "let", "await", "async",
+            "static", "get", "set", "from", "of", "finally"
+        ]
+        
+        keyword_format = self.create_format("keywords", bold=True)
+        for word in keywords:
+            pattern = r"\b" + word + r"\b"
+            self.highlighting_rules.append((pattern, keyword_format))
+        
+        # Template literals
+        template_format = self.create_format("variables")
+        self.highlighting_rules.append((r"\$\{.*?\}", template_format))
+    
+    def setup_xml_rules(self):
+        """Reglas específicas para XML/HTML"""
+        # Etiquetas
+        tag_format = self.create_format("tags")
+        self.highlighting_rules.append((r"</?\w+", tag_format))
+        
+        # Atributos
+        attribute_format = self.create_format("attributes")
+        self.highlighting_rules.append((r'\b\w+(?=\=)', attribute_format))
+        
+        # Valores
+        value_format = self.create_format("values")
+        self.highlighting_rules.append((r'="[^"]*"', value_format))
+    
+    def setup_css_rules(self):
+        """Reglas específicas para CSS"""
+        property_format = self.create_format("attributes")
+        self.highlighting_rules.append((r"\b[\w-]+\s*:", property_format))
+        
+        selector_format = self.create_format("tags")
+        self.highlighting_rules.append((r"[\.#]?[\w-]+\s*\{", selector_format))
+    
+    def setup_cpp_rules(self):
+        """Reglas específicas para C/C++"""
+        keywords = [
+            "auto", "break", "case", "char", "const", "continue", "default", "do", "double",
+            "else", "enum", "extern", "float", "for", "goto", "if", "int", "long", "register",
+            "return", "short", "signed", "sizeof", "static", "struct", "switch", "typedef",
+            "union", "unsigned", "void", "volatile", "while", "class", "namespace", "template",
+            "typename", "virtual", "public", "private", "protected", "new", "delete", "using"
+        ]
+        
+        keyword_format = self.create_format("keywords", bold=True)
+        for word in keywords:
+            pattern = r"\b" + word + r"\b"
+            self.highlighting_rules.append((pattern, keyword_format))
+    
+    # Añadir métodos setup para otros lenguajes (C#, PHP, Ruby, Go, Rust, Swift)...
+    # Los patrones son similares, solo cambian las palabras clave específicas
+    
+    def highlightBlock(self, text):
+        """Aplica el resaltado de sintaxis al bloque de texto"""
+        # Aplicar reglas básicas
+        for pattern, format in self.highlighting_rules:
+            expression = QRegularExpression(pattern)
+            matches = expression.globalMatch(text)
+            while matches.hasNext():
+                match = matches.next()
+                self.setFormat(match.capturedStart(), match.capturedLength(), format)
+        
+        # Manejar comentarios multilínea
+        self.highlight_multiline_comments(text)
+    
+    def highlight_multiline_comments(self, text):
+        """Maneja comentarios multilínea (/* */, <!-- -->, etc.)"""
+        # Comentarios multilínea estilo C/Java/JavaScript (/* */)
+        start_index = 0
+        if self.previousBlockState() != 1:
+            start_index = text.find("/*")
+        
+        comment_format = self.create_format("comments", italic=True)
+        
+        while start_index >= 0:
+            end_index = text.find("*/", start_index)
+            if end_index == -1:
+                self.setCurrentBlockState(1)
+                comment_length = len(text) - start_index
+                self.setFormat(start_index, comment_length, comment_format)
+                break
+            else:
+                comment_length = end_index - start_index + 2
+                self.setFormat(start_index, comment_length, comment_format)
+                start_index = text.find("/*", start_index + comment_length)
+        
+        # Comentarios XML/HTML (<!-- -->)
+        start_index = text.find("<!--")
+        while start_index >= 0:
+            end_index = text.find("-->", start_index)
+            if end_index == -1:
+                comment_length = len(text) - start_index
+                self.setFormat(start_index, comment_length, comment_format)
+                break
+            else:
+                comment_length = end_index - start_index + 3
+                self.setFormat(start_index, comment_length, comment_format)
+                start_index = text.find("<!--", start_index + comment_length)
+
+
+class HighlighterFactory:
+    """Factory para crear resaltadores específicos basados en la extensión del archivo"""
+    
+    LANGUAGE_MAP = {
+        # Java
+        '.java': 'java',
+        '.jav': 'java',
+        
+        # Kotlin
+        '.kt': 'kt',
+        '.kts': 'kt',
+        
+        # Dart
+        '.dart': 'dart',
+        
+        # Python
+        '.py': 'py',
+        '.pyw': 'py',
+        
+        # JavaScript/TypeScript
+        '.js': 'js',
+        '.jsx': 'js',
+        '.ts': 'ts',
+        '.tsx': 'ts',
+        
+        # XML/HTML
+        '.xml': 'xml',
+        '.html': 'xml',
+        '.htm': 'xml',
+        '.xhtml': 'xml',
+        
+        # CSS
+        '.css': 'css',
+        '.scss': 'css',
+        '.sass': 'css',
+        '.less': 'css',
+        
+        # C/C++
+        '.c': 'cpp',
+        '.cpp': 'cpp',
+        '.cc': 'cpp',
+        '.h': 'cpp',
+        '.hpp': 'cpp',
+        
+        # C#
+        '.cs': 'cs',
+        
+        # PHP
+        '.php': 'php',
+        '.phtml': 'php',
+        
+        # Ruby
+        '.rb': 'rb',
+        '.ruby': 'rb',
+        
+        # Go
+        '.go': 'go',
+        
+        # Rust
+        '.rs': 'rs',
+        '.rust': 'rs',
+        
+        # Swift
+        '.swift': 'swift',
+        
+        # Otros
+        '.json': 'js',
+        '.md': 'xml',  # Markdown como HTML
+        '.sql': 'sql',
+        '.sh': 'py',   # Shell como Python
+        '.bat': 'py',  # Batch como Python
+        '.ps1': 'py',  # PowerShell como Python
+    }
+    
+    @staticmethod
+    def create_highlighter(file_path, document, theme="dark"):
+        """Crea el resaltador apropiado basado en la extensión del archivo"""
+        extension = os.path.splitext(file_path)[1].lower()
+        language = HighlighterFactory.LANGUAGE_MAP.get(extension, 'auto')
+        
+        return VSCodeHighlighter(document, theme, language)
 
 project_root = Path(__file__).parent.parent
 env_path = project_root / '.env'
@@ -42,145 +489,124 @@ class FileType:
         self.template = template
 
 class NewFileDialog(QDialog):
-    def __init__(self, project_language, parent=None):
+    def __init__(self, project_language, parent=None, current_path=None):
         super().__init__(parent)
         self.project_language = project_language
+        self.current_path = current_path  # Nueva: ruta donde se creará el archivo
         self.selected_type = None
         self.setup_ui()
         
     def setup_ui(self):
-        self.setWindowTitle("Nuevo Archivo")
-        self.setFixedSize(500, 400)
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.main_layout = QVBoxLayout(self.central_widget)
         
-        layout = QVBoxLayout(self)
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.tabCloseRequested.connect(self.close_tab)
+        self.tab_widget.currentChanged.connect(self.tab_changed)
         
-      
-        title_label = QLabel("Seleccione el tipo de archivo:")
-        title_label.setStyleSheet("font-size: 14px; font-weight: bold; margin: 10px;")
-        layout.addWidget(title_label)
+        # Contenedor inicial CENTRO VACÍO (emulador oculto)
+        self.initial_container = QWidget()
+        self.initial_layout = QVBoxLayout(self.initial_container)
         
-       
-        self.file_types_list = QListWidget()
-        self.file_types_list.itemDoubleClicked.connect(self.accept_selection)
-        layout.addWidget(self.file_types_list)
+        self.initial_message = QLabel("Bienvenido a Creators Studio\n\nHaga doble clic en un archivo .xml en el explorador para comenzar a diseñar")
+        self.initial_message.setAlignment(Qt.AlignCenter)
+        self.initial_message.setStyleSheet("font-size: 16px; color: #666; padding: 100px; background-color: #f5f5f5; border-radius: 10px;")
+        self.initial_message.setWordWrap(True)
+        self.initial_layout.addWidget(self.initial_message)
         
-      
-        name_layout = QHBoxLayout()
-        name_layout.addWidget(QLabel("Nombre:"))
-        self.filename_input = QLineEdit()
-        self.filename_input.textChanged.connect(self.update_preview)
-        name_layout.addWidget(self.filename_input)
-        layout.addLayout(name_layout)
+        # Solo añadir la pestaña inicial (centro vacío)
+        self.tab_widget.addTab(self.initial_container, "Inicio")
         
-      
-        preview_label = QLabel("Vista previa:")
-        preview_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        layout.addWidget(preview_label)
+        self.main_layout.addWidget(self.tab_widget)
         
-        self.preview_editor = QPlainTextEdit()
-        self.preview_editor.setReadOnly(True)
-        self.preview_editor.setFixedHeight(150)
-        self.preview_editor.setStyleSheet("font-family: Consolas; font-size: 10px;")
-        layout.addWidget(self.preview_editor)
- 
-        button_layout = QHBoxLayout()
-        create_btn = QPushButton("Crear")
-        create_btn.clicked.connect(self.accept_selection)
-        cancel_btn = QPushButton("Cancelar")
-        cancel_btn.clicked.connect(self.reject)
+        # Crear todos los paneles (pero iniciarán ocultos excepto los que queremos)
+        self.create_tool_panel()
+        self.create_layers_panel()
+        self.create_color_panel()
+        self.create_brushes_panel()
+        self.create_character_panel()
+        self.create_paragraph_panel()
+        self.create_ai_panel()
+        self.create_file_explorer_panel()
         
-        button_layout.addWidget(create_btn)
-        button_layout.addWidget(cancel_btn)
-        layout.addLayout(button_layout)
+        self.create_menu_bar()
         
-        self.load_file_types()
+        # Configurar docks - SOLO CHAT IA y EXPLORER VISIBLES
+        self.setup_enhanced_docks()
+        
+        # FORZAR VISIBILIDAD DE PANELES ESPECÍFICOS
+        self.ai_panel.setVisible(True)
+        self.file_explorer_panel.setVisible(True)
+        
+        # Actualizar acciones del menú
+        self.ai_panel_action.setChecked(True)
+        self.explorer_panel_action.setChecked(True)
+        
+        self.statusBar().showMessage("Listo | Centro vacío - Abra un archivo .xml para comenzar")
         
     def load_file_types(self):
-
+        """Carga los tipos de archivo disponibles según el lenguaje del proyecto"""
         file_types = []
         
+        # Lenguajes específicos
         if self.project_language.lower() == "java":
-            file_types = [
-                FileType(
-                    "Clase Java", 
-                    [".java"], 
-                    "⚙️", 
-                    "public class {class_name} {\n    // TODO: Agregar código aquí\n}"
-                ),
-                FileType(
-                    "Interface Java", 
-                    [".java"], 
-                    "🔌", 
-                    "public interface {interface_name} {\n    // TODO: Definir métodos\n}"
-                ),
-                FileType(
-                    "Activity Android", 
-                    [".java"], 
-                    "📱", 
-                    "public class {class_name} extends AppCompatActivity {\n    @Override\n    protected void onCreate(Bundle savedInstanceState) {\n        super.onCreate(savedInstanceState);\n        setContentView(R.layout.{layout_name});\n    }\n}"
-                )
-            ]
+            file_types.extend([
+                FileType("Clase Java", [".java"], "⚙️", 
+                        "public class {class_name} {\n    public static void main(String[] args) {\n        // TODO: Agregar código aquí\n    }\n}"),
+                FileType("Interface Java", [".java"], "🔌", 
+                        "public interface {interface_name} {\n    // TODO: Definir métodos\n}"),
+                FileType("Activity Android", [".java"], "📱", 
+                        "public class {class_name} extends AppCompatActivity {\n    @Override\n    protected void onCreate(Bundle savedInstanceState) {\n        super.onCreate(savedInstanceState);\n        setContentView(R.layout.activity_main);\n    }\n}"),
+                FileType("Fragment Android", [".java"], "🧩", 
+                        "public class {class_name} extends Fragment {\n    @Override\n    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {\n        return inflater.inflate(R.layout.fragment_layout, container, false);\n    }\n}")
+            ])
         elif self.project_language.lower() == "kotlin":
-            file_types = [
-                FileType(
-                    "Clase Kotlin", 
-                    [".kt"], 
-                    "⚙️", 
-                    "class {class_name} {\n    // TODO: Agregar código aquí\n}"
-                ),
-                FileType(
-                    "Activity Kotlin", 
-                    [".kt"], 
-                    "📱", 
-                    "class {class_name} : AppCompatActivity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        setContentView(R.layout.{layout_name})\n    }\n}"
-                )
-            ]
+            file_types.extend([
+                FileType("Clase Kotlin", [".kt"], "⚙️", 
+                        "class {class_name} {\n    // TODO: Agregar código aquí\n}"),
+                FileType("Activity Kotlin", [".kt"], "📱", 
+                        "class {class_name} : AppCompatActivity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        setContentView(R.layout.activity_main)\n    }\n}"),
+                FileType("Fragment Kotlin", [".kt"], "🧩", 
+                        "class {class_name} : Fragment() {\n    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {\n        return inflater.inflate(R.layout.fragment_layout, container, false)\n    }\n}")
+            ])
         elif self.project_language.lower() == "flutter":
-            file_types = [
-                FileType(
-                    "Widget Flutter", 
-                    [".dart"], 
-                    "🎯", 
-                    "class {class_name} extends StatelessWidget {\n  @override\n  Widget build(BuildContext context) {\n    return Container();\n  }\n}"
-                ),
-                FileType(
-                    "Stateful Widget", 
-                    [".dart"], 
-                    "🔄", 
-                    "class {class_name} extends StatefulWidget {\n  @override\n  _${class_name}State createState() => _${class_name}State();\n}\n\nclass _${class_name}State extends State<{class_name}> {\n  @override\n  Widget build(BuildContext context) {\n    return Container();\n  }\n}"
-                )
-            ]
+            file_types.extend([
+                FileType("Widget Flutter", [".dart"], "🎯", 
+                        "class {class_name} extends StatelessWidget {\n  @override\n  Widget build(BuildContext context) {\n    return Container();\n  }\n}"),
+                FileType("Stateful Widget", [".dart"], "🔄", 
+                        "class {class_name} extends StatefulWidget {\n  @override\n  _${class_name}State createState() => _${class_name}State();\n}\n\nclass _${class_name}State extends State<{class_name}> {\n  @override\n  Widget build(BuildContext context) {\n    return Container();\n  }\n}"),
+                FileType("Dart Class", [".dart"], "📦", 
+                        "class {class_name} {\n  // TODO: Agregar código aquí\n}")
+            ])
         
-
+        # Archivos comunes a todos los proyectos
         common_types = [
-            FileType(
-                "Layout XML", 
-                [".xml"], 
-                "📐", 
-                '<?xml version="1.0" encoding="utf-8"?>\n<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"\n    android:layout_width="match_parent"\n    android:layout_height="match_parent"\n    android:orientation="vertical">\n    \n</LinearLayout>'
-            ),
-            FileType(
-                "Recursos XML", 
-                [".xml"], 
-                "🎨", 
-                '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <!-- Agregar recursos aquí -->\n</resources>'
-            ),
-            FileType(
-                "Archivo de Texto", 
-                [".txt"], 
-                "📄", 
-                ""
-            ),
-            FileType(
-                "Archivo JSON", 
-                [".json"], 
-                "🔷", 
-                "{\n    \"key\": \"value\"\n}"
-            )
+            FileType("Layout XML", [".xml"], "📐", 
+                    '<?xml version="1.0" encoding="utf-8"?>\n<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"\n    android:layout_width="match_parent"\n    android:layout_height="match_parent"\n    android:orientation="vertical">\n    \n</LinearLayout>'),
+            FileType("Recursos XML", [".xml"], "🎨", 
+                    '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="app_name">Mi Aplicación</string>\n</resources>'),
+            FileType("Archivo de Texto", [".txt"], "📄", ""),
+            FileType("Archivo JSON", [".json"], "🔷", 
+                    "{\n    \"name\": \"example\",\n    \"version\": \"1.0.0\"\n}"),
+            FileType("Archivo Markdown", [".md"], "📝", 
+                    "# Título\n\nDescripción del archivo."),
+            FileType("Archivo HTML", [".html"], "🌐", 
+                    "<!DOCTYPE html>\n<html>\n<head>\n    <title>Document</title>\n</head>\n<body>\n    \n</body>\n</html>"),
+            FileType("Hoja de Estilos CSS", [".css"], "🎨", 
+                    "/* Estilos CSS */\nbody {\n    margin: 0;\n    padding: 0;\n}"),
+            FileType("Script JavaScript", [".js"], "📜", 
+                    "// Código JavaScript\nconsole.log('Hola Mundo');"),
+            FileType("Archivo Python", [".py"], "🐍", 
+                    "# Código Python\nprint('Hola Mundo')"),
+            FileType("Archivo SQL", [".sql"], "🗃️", 
+                    "-- Consultas SQL\nSELECT * FROM tabla;")
         ]
         
         file_types.extend(common_types)
         
+        # Añadir al listado
         for file_type in file_types:
             item = QListWidgetItem(f"{file_type.icon} {file_type.name} ({', '.join(file_type.extensions)})")
             item.setData(Qt.UserRole, file_type)
@@ -189,6 +615,7 @@ class NewFileDialog(QDialog):
         self.file_types_list.setCurrentRow(0)
         
     def accept_selection(self):
+        """Valida y acepta la selección"""
         current_item = self.file_types_list.currentItem()
         if not current_item:
             QMessageBox.warning(self, "Error", "Seleccione un tipo de archivo")
@@ -198,12 +625,19 @@ class NewFileDialog(QDialog):
         if not filename:
             QMessageBox.warning(self, "Error", "Ingrese un nombre para el archivo")
             return
+        
+        # Validar caracteres no permitidos en nombres de archivo
+        invalid_chars = ['<', '>', ':', '"', '|', '?', '*', '\\', '/']
+        if any(char in filename for char in invalid_chars):
+            QMessageBox.warning(self, "Error", f"El nombre contiene caracteres no permitidos: {''.join(invalid_chars)}")
+            return
             
         self.selected_type = current_item.data(Qt.UserRole)
         self.selected_filename = filename
         self.accept()
         
     def update_preview(self):
+        """Actualiza la vista previa cuando cambia la selección o el nombre"""
         current_item = self.file_types_list.currentItem()
         if not current_item:
             return
@@ -214,69 +648,197 @@ class NewFileDialog(QDialog):
         if not filename:
             self.preview_editor.setPlainText("")
             return
-         
+        
+        # Generar preview del contenido
         preview = file_type.template
         
-    
-        class_name = filename.replace(" ", "").replace(".java", "").replace(".kt", "").replace(".dart", "")
+        # Reemplazar placeholders
+        class_name = filename.replace(" ", "_").replace(".java", "").replace(".kt", "").replace(".dart", "")
         preview = preview.replace("{class_name}", class_name)
         preview = preview.replace("{interface_name}", class_name)
         preview = preview.replace("{layout_name}", class_name.lower())
         
         self.preview_editor.setPlainText(preview)
-
-def new_file_with_template(self):
-    """Crea un nuevo archivo con selección de tipo"""
-    dialog = NewFileDialog(self.project_language, self)
-    if dialog.exec_() == QDialog.Accepted:
-        file_type = dialog.selected_type
-        filename = dialog.selected_filename
-
-        if not any(filename.endswith(ext) for ext in file_type.extensions):
-            filename += file_type.extensions[0]
+class FileExplorerContextMenu(QMenu):
+    """Menú contextual personalizado para el explorador de archivos"""
+    
+    def __init__(self, parent=None):
+        super().__init__("Explorador", parent)
+        self.parent = parent
+        self.setup_menu()
+    
+    def setup_menu(self):
+        """Configura las opciones del menú contextual"""
+        # Opción: Nuevo Archivo
+        new_file_action = QAction("📄 Nuevo Archivo", self)
+        new_file_action.setShortcut("Ctrl+N")
+        new_file_action.triggered.connect(self.create_new_file)
+        self.addAction(new_file_action)
         
-        file_path = os.path.join(self.project_path, filename)
-
-        if os.path.exists(file_path):
-            reply = QMessageBox.question(
-                self,
-                "Archivo existente",
-                f"El archivo {filename} ya existe. ¿Desea reemplazarlo?",
-                QMessageBox.Yes | QMessageBox.No
-            )
-            if reply == QMessageBox.No:
-                return
-
-        try:
-            with open(file_path, 'w', encoding='utf-8') as f:
-
-                content = file_type.template
-                class_name = filename.replace(" ", "").replace(".java", "").replace(".kt", "").replace(".dart", "")
-                content = content.replace("{class_name}", class_name)
-                content = content.replace("{interface_name}", class_name)
-                content = content.replace("{layout_name}", class_name.lower())
+        # Opción: Nueva Carpeta
+        new_folder_action = QAction("📁 Nueva Carpeta", self)
+        new_folder_action.setShortcut("Ctrl+Shift+N")
+        new_folder_action.triggered.connect(self.create_new_folder)
+        self.addAction(new_folder_action)
+        
+        self.addSeparator()
+        
+        # Opción: Renombrar
+        rename_action = QAction("✏️ Renombrar", self)
+        rename_action.setShortcut("F2")
+        rename_action.triggered.connect(self.rename_item)
+        self.addAction(rename_action)
+        
+        # Opción: Eliminar
+        delete_action = QAction("🗑️ Eliminar", self)
+        delete_action.setShortcut("Del")
+        delete_action.triggered.connect(self.delete_item)
+        self.addAction(delete_action)
+        
+        self.addSeparator()
+        
+        # Opción: Copiar Ruta
+        copy_path_action = QAction("📋 Copiar Ruta", self)
+        copy_path_action.triggered.connect(self.copy_path)
+        self.addAction(copy_path_action)
+        
+        # Opción: Abrir en Explorador del Sistema
+        open_explorer_action = QAction("📂 Abrir en Explorador", self)
+        open_explorer_action.triggered.connect(self.open_in_system_explorer)
+        self.addAction(open_explorer_action)
+    
+    def create_new_file(self):
+        """Crea un nuevo archivo en la ubicación actual"""
+        if hasattr(self.parent, 'file_tree'):
+            index = self.parent.file_tree.currentIndex()
+            if index.isValid():
+                current_path = self.parent.file_model.filePath(index)
                 
-                f.write(content)
-
-            self.file_model.setRootPath(self.project_path)
-
-            self.open_file_in_tab(file_path)
-            
-            self.statusBar().showMessage(f"Archivo {filename} creado exitosamente", 3000)
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"No se pudo crear el archivo:\n{str(e)}")
-
-def create_menu_bar(self):
-    menubar = self.menuBar()
+                # Si es un archivo, usar el directorio padre
+                if os.path.isfile(current_path):
+                    current_path = os.path.dirname(current_path)
+                
+                dialog = NewFileDialog(
+                    self.parent.project_language, 
+                    self.parent, 
+                    current_path
+                )
+                
+                if dialog.exec_() == QDialog.Accepted:
+                    self.parent.create_file_from_dialog(dialog, current_path)
     
-    file_menu = menubar.addMenu("Archivo")
+    def create_new_folder(self):
+        """Crea una nueva carpeta en la ubicación actual"""
+        if hasattr(self.parent, 'file_tree'):
+            index = self.parent.file_tree.currentIndex()
+            if index.isValid():
+                current_path = self.parent.file_model.filePath(index)
+                
+                # Si es un archivo, usar el directorio padre
+                if os.path.isfile(current_path):
+                    current_path = os.path.dirname(current_path)
+                
+                folder_name, ok = QInputDialog.getText(
+                    self.parent, 
+                    "Nueva Carpeta", 
+                    "Nombre de la carpeta:",
+                    text="NuevaCarpeta"
+                )
+                
+                if ok and folder_name:
+                    new_folder_path = os.path.join(current_path, folder_name)
+                    try:
+                        os.makedirs(new_folder_path, exist_ok=False)
+                        self.parent.file_model.setRootPath(self.parent.project_path)
+                        QMessageBox.information(self.parent, "Éxito", f"Carpeta '{folder_name}' creada correctamente")
+                    except FileExistsError:
+                        QMessageBox.warning(self.parent, "Error", f"La carpeta '{folder_name}' ya existe")
+                    except Exception as e:
+                        QMessageBox.critical(self.parent, "Error", f"No se pudo crear la carpeta: {str(e)}")
     
-    new_action = QAction("Nuevo Archivo", self)
-    new_action.setShortcut("Ctrl+N")
-    new_action.triggered.connect(self.new_file_with_template)  
-    file_menu.addAction(new_action)
-
+    def rename_item(self):
+        """Renombra el archivo o carpeta seleccionado"""
+        if hasattr(self.parent, 'file_tree'):
+            index = self.parent.file_tree.currentIndex()
+            if index.isValid():
+                current_path = self.parent.file_model.filePath(index)
+                current_name = os.path.basename(current_path)
+                
+                new_name, ok = QInputDialog.getText(
+                    self.parent, 
+                    "Renombrar", 
+                    "Nuevo nombre:",
+                    text=current_name
+                )
+                
+                if ok and new_name and new_name != current_name:
+                    new_path = os.path.join(os.path.dirname(current_path), new_name)
+                    try:
+                        os.rename(current_path, new_path)
+                        self.parent.file_model.setRootPath(self.parent.project_path)
+                        QMessageBox.information(self.parent, "Éxito", "Elemento renombrado correctamente")
+                    except Exception as e:
+                        QMessageBox.critical(self.parent, "Error", f"No se pudo renombrar: {str(e)}")
+    
+    def delete_item(self):
+        """Elimina el archivo o carpeta seleccionado"""
+        if hasattr(self.parent, 'file_tree'):
+            index = self.parent.file_tree.currentIndex()
+            if index.isValid():
+                current_path = self.parent.file_model.filePath(index)
+                item_name = os.path.basename(current_path)
+                item_type = "archivo" if os.path.isfile(current_path) else "carpeta"
+                
+                reply = QMessageBox.question(
+                    self.parent,
+                    "Confirmar Eliminación",
+                    f"¿Está seguro de que desea eliminar el {item_type} '{item_name}'?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                
+                if reply == QMessageBox.Yes:
+                    try:
+                        if os.path.isfile(current_path):
+                            os.remove(current_path)
+                        else:
+                            import shutil
+                            shutil.rmtree(current_path)
+                        
+                        self.parent.file_model.setRootPath(self.parent.project_path)
+                        QMessageBox.information(self.parent, "Éxito", f"{item_type.capitalize()} eliminado correctamente")
+                    except Exception as e:
+                        QMessageBox.critical(self.parent, "Error", f"No se pudo eliminar: {str(e)}")
+    
+    def copy_path(self):
+        """Copia la ruta del archivo/carpeta al portapapeles"""
+        if hasattr(self.parent, 'file_tree'):
+            index = self.parent.file_tree.currentIndex()
+            if index.isValid():
+                current_path = self.parent.file_model.filePath(index)
+                QApplication.clipboard().setText(current_path)
+                QMessageBox.information(self.parent, "Portapapeles", "Ruta copiada al portapapeles")
+    
+    def open_in_system_explorer(self):
+        """Abre la ubicación en el explorador del sistema"""
+        if hasattr(self.parent, 'file_tree'):
+            index = self.parent.file_tree.currentIndex()
+            if index.isValid():
+                current_path = self.parent.file_model.filePath(index)
+                
+                # Si es un archivo, abrir su directorio padre
+                if os.path.isfile(current_path):
+                    current_path = os.path.dirname(current_path)
+                
+                try:
+                    if platform.system() == "Windows":
+                        os.startfile(current_path)
+                    elif platform.system() == "Darwin":  # macOS
+                        subprocess.run(["open", current_path])
+                    else:  # Linux
+                        subprocess.run(["xdg-open", current_path])
+                except Exception as e:
+                    QMessageBox.warning(self.parent, "Error", f"No se pudo abrir el explorador: {str(e)}")
 class AIProvider:
     """Clase base para proveedores de IA"""
     DEEPSEEK = "deepseek"
@@ -899,65 +1461,66 @@ class LineNumberArea(QWidget):
     def paintEvent(self, event):
         self.editor.line_number_area_paint_event(event)
 
-class CodeEditor(QPlainTextEdit):
-    def __init__(self, parent=None):
+# REEMPLAZAR la clase CodeEditor completa con esta versión mejorada
+class EnhancedCodeEditor(QPlainTextEdit):
+    """Editor de código mejorado con resaltado estilo VS Code y números de línea CORREGIDO"""
+    
+    def __init__(self, parent=None, theme="dark"):
         super().__init__(parent)
+        self.theme = theme
+        self.highlighter = None
+        self.setup_editor()
+        self.setup_line_numbers()
+    
+    def setup_editor(self):
+        """Configura el editor con tema VS Code"""
+        if self.theme == "dark":
+            self.setStyleSheet("""
+                EnhancedCodeEditor {
+                    background-color: #1e1e1e;
+                    color: #d4d4d4;
+                    border: 1px solid #3e3e42;
+                    font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+                    font-size: 14px;
+                    selection-background-color: #264F78;
+                    line-height: 1.5;
+                }
+            """)
+        else:
+            self.setStyleSheet("""
+                EnhancedCodeEditor {
+                    background-color: #ffffff;
+                    color: #000000;
+                    border: 1px solid #cccccc;
+                    font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+                    font-size: 14px;
+                    selection-background-color: #add6ff;
+                    line-height: 1.5;
+                }
+            """)
         
-        self.setStyleSheet("""
-            CodeEditor {
-                background-color: #1e1e1e;
-                color: #d4d4d4;
-                border: 1px solid #3e3e42;
-                font-family: 'Consolas', 'Courier New', monospace;
-                font-size: 12px;
-                selection-background-color: #264F78;
-            }
-       
-            QScrollBar:vertical {
-                border: none;
-                background: #1e1e1e;
-                width: 10px;
-                margin: 0px;
-            }
-            QScrollBar::handle:vertical {
-                background: #424242;
-                min-height: 20px;
-                border-radius: 5px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #4f4f4f;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-            QScrollBar:horizontal {
-                border: none;
-                background: #1e1e1e;
-                height: 10px;
-                margin: 0px;
-            }
-            QScrollBar::handle:horizontal {
-                background: #424242;
-                min-width: 20px;
-                border-radius: 5px;
-            }
-            QScrollBar::handle:horizontal:hover {
-                background: #4f4f4f;
-            }
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                width: 0px;
-            }
-        """)
+        # Configurar fuente monoespaciada
+        font = QFont("Consolas", 12)  # Usar Consolas que es más común
+        font.setStyleHint(QFont.Monospace)
+        self.setFont(font)
         
+        # Habilitar tabulaciones con 4 espacios
+        self.setTabStopDistance(40)
+    
+    def setup_line_numbers(self):
+        """Configura el área de números de línea CORREGIDO"""
         self.line_number_area = LineNumberArea(self)
+        
+        # Conectar señales CORREGIDO - usar nombres correctos
         self.blockCountChanged.connect(self.update_line_number_area_width)
         self.updateRequest.connect(self.update_line_number_area)
         self.cursorPositionChanged.connect(self.highlight_current_line)
+        
         self.update_line_number_area_width(0)
         self.highlight_current_line()
-        self.highlighter = None
-
+    
     def line_number_area_width(self):
+        """Calcula el ancho del área de números de línea"""
         digits = 1
         max_num = max(1, self.blockCount())
         while max_num >= 10:
@@ -965,31 +1528,36 @@ class CodeEditor(QPlainTextEdit):
             digits += 1
         space = 10 + self.fontMetrics().horizontalAdvance('9') * digits
         return space
-
-    def update_line_number_area_width(self, _):
+    
+    def update_line_number_area_width(self, new_block_count):
+        """Actualiza el margen para el área de números"""
         self.setViewportMargins(self.line_number_area_width(), 0, 0, 0)
-
+    
     def update_line_number_area(self, rect, dy):
+        """Actualiza el área de números de línea cuando se desplaza"""
         if dy:
             self.line_number_area.scroll(0, dy)
         else:
             self.line_number_area.update(0, rect.y(), self.line_number_area.width(), rect.height())
+        
         if rect.contains(self.viewport().rect()):
             self.update_line_number_area_width(0)
-
+    
     def resizeEvent(self, event):
+        """Maneja el redimensionamiento del editor"""
         super().resizeEvent(event)
         cr = self.contentsRect()
         self.line_number_area.setGeometry(QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height()))
-
+    
     def line_number_area_paint_event(self, event):
+        """Pinta los números de línea - CORREGIDO"""
         painter = QPainter(self.line_number_area)
         painter.fillRect(event.rect(), QColor("#2d2d30"))
         
         block = self.firstVisibleBlock()
         block_number = block.blockNumber()
-        top = self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
-        bottom = top + self.blockBoundingGeometry(block).height()
+        top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
+        bottom = top + int(self.blockBoundingGeometry(block).height())
         
         font = painter.font()
         font.setFamily("Consolas")
@@ -1000,20 +1568,21 @@ class CodeEditor(QPlainTextEdit):
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
                 number = str(block_number + 1)
-                painter.drawText(0, int(top), self.line_number_area.width() - 5, 
-                                self.fontMetrics().height(), Qt.AlignRight, number)
+                painter.drawText(0, top, self.line_number_area.width() - 5, 
+                               self.fontMetrics().height(), Qt.AlignRight, number)
             
             block = block.next()
             top = bottom
-            bottom = top + self.blockBoundingGeometry(block).height()
+            bottom = top + int(self.blockBoundingGeometry(block).height())
             block_number += 1
-
+    
     def highlight_current_line(self):
+        """Resalta la línea actual"""
         extra_selections = []
         
         if not self.isReadOnly():
             selection = QTextEdit.ExtraSelection()
-            line_color = QColor("#2f2f32")
+            line_color = QColor("#2f2f32") if self.theme == "dark" else QColor("#efefef")
             selection.format.setBackground(line_color)
             selection.format.setProperty(QTextFormat.FullWidthSelection, True)
             selection.cursor = self.textCursor()
@@ -1021,567 +1590,13 @@ class CodeEditor(QPlainTextEdit):
             extra_selections.append(selection)
         
         self.setExtraSelections(extra_selections)
-
+    
     def set_highlighter(self, file_path):
-        """Configura el resaltador de sintaxis según la extensión del archivo"""
-        extension = os.path.splitext(file_path)[1].lower()
-        
-
+        """Configura el resaltador de sintaxis para el archivo"""
         if self.highlighter:
             self.highlighter.setDocument(None)
         
-
-        if extension == '.java':
-            self.highlighter = JavaHighlighter(self.document())
-        elif extension == '.py':
-            self.highlighter = PythonHighlighter(self.document())
-        elif extension in ['.js', '.jsx']:
-            self.highlighter = JavaScriptHighlighter(self.document())
-        elif extension in ['.ts', '.tsx']:
-            self.highlighter = TypeScriptHighlighter(self.document())
-        elif extension == '.xml':
-            self.highlighter = XmlHighlighter(self.document())
-        elif extension == '.html':
-            self.highlighter = HtmlHighlighter(self.document())
-        elif extension == '.css':
-            self.highlighter = CssHighlighter(self.document())
-        elif extension == '.kt':
-            self.highlighter = KotlinHighlighter(self.document())
-        elif extension == '.dart':
-            self.highlighter = DartHighlighter(self.document())
-        else:
-            self.highlighter = BaseHighlighter(self.document())
-
-class BaseHighlighter(QSyntaxHighlighter):
-    """Clase base para todos los highlighters"""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.highlighting_rules = []
-        self.setup_highlight_rules()
-    
-    def setup_highlight_rules(self):
-        """Método que deben implementar las clases hijas"""
-        pass
-    
-    def highlightBlock(self, text):
-        for pattern, format in self.highlighting_rules:
-            match_iterator = pattern.globalMatch(text)
-            while match_iterator.hasNext():
-                match = match_iterator.next()
-                self.setFormat(match.capturedStart(), match.capturedLength(), format)
-        
-        self.setCurrentBlockState(0)
-        self.highlight_multiline_comments(text)
-
-    def highlight_multiline_comments(self, text):
-        """Maneja comentarios multilínea (debe ser implementado por subclases si es necesario)"""
-        pass
-
-class JavaHighlighter(BaseHighlighter):
-    def setup_highlight_rules(self):
-  
-        keyword_format = QTextCharFormat()
-        keyword_format.setForeground(QColor("#569CD6"))
-        keyword_format.setFontWeight(QFont.Bold)
-        keywords = [
-            "abstract", "assert", "boolean", "break", "byte", "case", "catch",
-            "char", "class", "const", "continue", "default", "do", "double",
-            "else", "enum", "extends", "final", "finally", "float", "for",
-            "goto", "if", "implements", "import", "instanceof", "int", "interface",
-            "long", "native", "new", "package", "private", "protected", "public",
-            "return", "short", "static", "strictfp", "super", "switch",
-            "synchronized", "this", "throw", "throws", "transient", "try",
-            "void", "volatile", "while", "var", "record", "sealed", "non-sealed", "permits"
-        ]
-        for word in keywords:
-            pattern = QRegularExpression(r"\b" + word + r"\b")
-            self.highlighting_rules.append((pattern, keyword_format))
-        
-
-        type_format = QTextCharFormat()
-        type_format.setForeground(QColor("#4EC9B0"))
-        types = [
-            "String", "Integer", "Double", "Float", "Boolean", "Object", 
-            "List", "Map", "Set", "ArrayList", "HashMap", "HashSet",
-            "Number", "Character", "Byte", "Short", "Long", "Void"
-        ]
-        for word in types:
-            pattern = QRegularExpression(r"\b" + word + r"\b")
-            self.highlighting_rules.append((pattern, type_format))
-        
-
-        single_line_comment_format = QTextCharFormat()
-        single_line_comment_format.setForeground(QColor("#6A9955"))
-        self.highlighting_rules.append((QRegularExpression("//[^\n]*"), single_line_comment_format))
-
-
-        string_format = QTextCharFormat()
-        string_format.setForeground(QColor("#CE9178"))
-        self.highlighting_rules.append((QRegularExpression("\".*\""), string_format))
-        self.highlighting_rules.append((QRegularExpression("\'.*\'"), string_format))
-        
-
-        number_format = QTextCharFormat()
-        number_format.setForeground(QColor("#B5CEA8"))
-        self.highlighting_rules.append((QRegularExpression(r"\b\d+\b"), number_format))
-        self.highlighting_rules.append((QRegularExpression(r"\b\d+\.\d+\b"), number_format))
-        self.highlighting_rules.append((QRegularExpression(r"\b0x[0-9A-Fa-f]+\b"), number_format))
-        
-
-        annotation_format = QTextCharFormat()
-        annotation_format.setForeground(QColor("#C586C0"))
-        self.highlighting_rules.append((QRegularExpression(r"@[^\s\(\)]+"), annotation_format))
-        
-
-        operator_format = QTextCharFormat()
-        operator_format.setForeground(QColor("#D4D4D4"))
-        operators = [r"\=", r"\+", r"\-", r"\*", r"\/", r"\%", r"\=\=", r"\!=", 
-                    r"\>", r"\<", r"\>\=", r"\<\=", r"\&", r"\|", r"\&", r"\|\|",
-                    r"\+\+", r"\-\-", r"\+=", r"\-=", r"\*=", r"\/=", r"\%=",
-                    r"\<\<", r"\>\>", r"\>\>\>", r"\<\<=", r"\>\>=", r"\>\>\>="]
-        for op in operators:
-            self.highlighting_rules.append((QRegularExpression(op), operator_format))
-        
-
-        method_format = QTextCharFormat()
-        method_format.setForeground(QColor("#DCDCAA"))
-        self.highlighting_rules.append((QRegularExpression(r"\b\w+\([^\)]*\)\s*\{"), method_format))
-        self.highlighting_rules.append((QRegularExpression(r"\b\w+\s*\("), method_format))
-        
-   
-        constant_format = QTextCharFormat()
-        constant_format.setForeground(QColor("#4FC1FF"))
-        self.highlighting_rules.append((QRegularExpression(r"\b[A-Z_][A-Z0-9_]+\b"), constant_format))
-
-    def highlight_multiline_comments(self, text):
-        start_index = 0
-        if self.previousBlockState() != 1:
-            start_index = text.indexOf("/*")
-        
-        comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#6A9955"))
-        
-        while start_index >= 0:
-            end_index = text.indexOf("*/", start_index)
-            if end_index == -1:
-                self.setCurrentBlockState(1)
-                comment_length = len(text) - start_index
-            else:
-                comment_length = end_index - start_index + 2
-            
-            self.setFormat(start_index, comment_length, comment_format)
-            start_index = text.indexOf("/*", start_index + comment_length)
-
-class PythonHighlighter(BaseHighlighter):
-    def setup_highlight_rules(self):
-
-        keyword_format = QTextCharFormat()
-        keyword_format.setForeground(QColor("#569CD6"))
-        keyword_format.setFontWeight(QFont.Bold)
-        keywords = [
-            "and", "as", "assert", "async", "await", "break", "class", "continue",
-            "def", "del", "elif", "else", "except", "False", "finally", "for",
-            "from", "global", "if", "import", "in", "is", "lambda", "None",
-            "nonlocal", "not", "or", "pass", "raise", "return", "True", "try",
-            "while", "with", "yield"
-        ]
-        for word in keywords:
-            pattern = QRegularExpression(r"\b" + word + r"\b")
-            self.highlighting_rules.append((pattern, keyword_format))
-        
-
-        decorator_format = QTextCharFormat()
-        decorator_format.setForeground(QColor("#C586C0"))
-        self.highlighting_rules.append((QRegularExpression(r"@\w+"), decorator_format))
-        
-      
-        comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#6A9955"))
-        self.highlighting_rules.append((QRegularExpression("#[^\n]*"), comment_format))
-        
-   
-        string_format = QTextCharFormat()
-        string_format.setForeground(QColor("#CE9178"))
-        self.highlighting_rules.append((QRegularExpression("\"[^\"]*\""), string_format))
-        self.highlighting_rules.append((QRegularExpression("\'[^\']*\'"), string_format))
-        self.highlighting_rules.append((QRegularExpression("\"\"\"[^\"]*\"\"\""), string_format))
-        self.highlighting_rules.append((QRegularExpression("\'\'\'[^\']*\'\'\'"), string_format))
-        
-       
-        number_format = QTextCharFormat()
-        number_format.setForeground(QColor("#B5CEA8"))
-        self.highlighting_rules.append((QRegularExpression(r"\b\d+\b"), number_format))
-        self.highlighting_rules.append((QRegularExpression(r"\b\d+\.\d+\b"), number_format))
-        
-
-        function_format = QTextCharFormat()
-        function_format.setForeground(QColor("#DCDCAA"))
-        self.highlighting_rules.append((QRegularExpression(r"\b\w+\([^\)]*\)\s*:"), function_format))
-        self.highlighting_rules.append((QRegularExpression(r"\bdef\s+(\w+)"), function_format))
-      
-        class_format = QTextCharFormat()
-        class_format.setForeground(QColor("#4EC9B0"))
-        self.highlighting_rules.append((QRegularExpression(r"\bclass\s+(\w+)"), class_format))
-        
-        
-        self_format = QTextCharFormat()
-        self_format.setForeground(QColor("#4FC1FF"))
-        self.highlighting_rules.append((QRegularExpression(r"\bself\b"), self_format))
-
-class JavaScriptHighlighter(BaseHighlighter):
-    def setup_highlight_rules(self):
-     
-        keyword_format = QTextCharFormat()
-        keyword_format.setForeground(QColor("#569CD6"))
-        keyword_format.setFontWeight(QFont.Bold)
-        keywords = [
-            "break", "case", "catch", "class", "const", "continue", "debugger",
-            "default", "delete", "do", "else", "export", "extends", "finally",
-            "for", "function", "if", "import", "in", "instanceof", "new",
-            "return", "super", "switch", "this", "throw", "try", "typeof",
-            "var", "void", "while", "with", "yield", "let", "await", "async",
-            "static", "get", "set", "from", "of", "finally"
-        ]
-        for word in keywords:
-            pattern = QRegularExpression(r"\b" + word + r"\b")
-            self.highlighting_rules.append((pattern, keyword_format))
-        
-   
-        constant_format = QTextCharFormat()
-        constant_format.setForeground(QColor("#4FC1FF"))
-        constants = ["true", "false", "null", "undefined", "NaN", "Infinity"]
-        for word in constants:
-            pattern = QRegularExpression(r"\b" + word + r"\b")
-            self.highlighting_rules.append((pattern, constant_format))
-       
-        comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#6A9955"))
-        self.highlighting_rules.append((QRegularExpression("//[^\n]*"), comment_format))
-        
-        
-        string_format = QTextCharFormat()
-        string_format.setForeground(QColor("#CE9178"))
-        self.highlighting_rules.append((QRegularExpression("\"[^\"]*\""), string_format))
-        self.highlighting_rules.append((QRegularExpression("\'[^\']*\'"), string_format))
-        self.highlighting_rules.append((QRegularExpression("`[^`]*`"), string_format))
-        
-        
-        template_format = QTextCharFormat()
-        template_format.setForeground(QColor("#DCDCAA"))
-        self.highlighting_rules.append((QRegularExpression(r"\$\{[^\}]*\}"), template_format))
-        
-       
-        number_format = QTextCharFormat()
-        number_format.setForeground(QColor("#B5CEA8"))
-        self.highlighting_rules.append((QRegularExpression(r"\b\d+\b"), number_format))
-        self.highlighting_rules.append((QRegularExpression(r"\b\d+\.\d+\b"), number_format))
-        self.highlighting_rules.append((QRegularExpression(r"\b0x[0-9A-Fa-f]+\b"), number_format))
-        
-       
-        function_format = QTextCharFormat()
-        function_format.setForeground(QColor("#DCDCAA"))
-        self.highlighting_rules.append((QRegularExpression(r"\bfunction\s+(\w+)"), function_format))
-        self.highlighting_rules.append((QRegularExpression(r"\b\w+\s*\([^\)]*\)\s*\{"), function_format))
-        self.highlighting_rules.append((QRegularExpression(r"\(\s*\)\s*=>"), function_format))
-        
-       
-        class_format = QTextCharFormat()
-        class_format.setForeground(QColor("#4EC9B0"))
-        self.highlighting_rules.append((QRegularExpression(r"\bclass\s+(\w+)"), class_format))
-
-    def highlight_multiline_comments(self, text):
-        start_index = 0
-        if self.previousBlockState() != 1:
-            start_index = text.indexOf("/*")
-        
-        comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#6A9955"))
-        
-        while start_index >= 0:
-            end_index = text.indexOf("*/", start_index)
-            if end_index == -1:
-                self.setCurrentBlockState(1)
-                comment_length = len(text) - start_index
-            else:
-                comment_length = end_index - start_index + 2
-            
-            self.setFormat(start_index, comment_length, comment_format)
-            start_index = text.indexOf("/*", start_index + comment_length)
-
-class XmlHighlighter(BaseHighlighter):
-    def setup_highlight_rules(self):
-       
-        tag_format = QTextCharFormat()
-        tag_format.setForeground(QColor("#569CD6"))
-        self.highlighting_rules.append((QRegularExpression(r"<\/?[\w:-]+"), tag_format))
-        
-        
-        attribute_format = QTextCharFormat()
-        attribute_format.setForeground(QColor("#9CDCFE"))
-        self.highlighting_rules.append((QRegularExpression(r"[\w:-]+="), attribute_format))
-        
-       
-        value_format = QTextCharFormat()
-        value_format.setForeground(QColor("#CE9178"))
-        self.highlighting_rules.append((QRegularExpression(r"=\"[^\"]*\""), value_format))
-        
-     
-        comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#6A9955"))
-        self.highlighting_rules.append((QRegularExpression(r"<!--[^>]*-->"), comment_format))
-        
-   
-        doctype_format = QTextCharFormat()
-        doctype_format.setForeground(QColor("#569CD6"))
-        self.highlighting_rules.append((QRegularExpression(r"<!DOCTYPE[^>]*>"), doctype_format))
-        
-      
-        cdata_format = QTextCharFormat()
-        cdata_format.setForeground(QColor("#CE9178"))
-        self.highlighting_rules.append((QRegularExpression(r"<!\[CDATA\[[^\]]*\]\]>"), cdata_format))
-
-class CssHighlighter(BaseHighlighter):
-    def setup_highlight_rules(self):
-   
-        property_format = QTextCharFormat()
-        property_format.setForeground(QColor("#9CDCFE"))
-        properties = [
-            "color", "background", "font", "margin", "padding", "border", "width",
-            "height", "display", "position", "top", "right", "bottom", "left",
-            "flex", "grid", "animation", "transition", "transform", "opacity"
-        ]
-        for prop in properties:
-            pattern = QRegularExpression(r"\b" + prop + r"\b\s*:")
-            self.highlighting_rules.append((pattern, property_format))
-        
-     
-        selector_format = QTextCharFormat()
-        selector_format.setForeground(QColor("#569CD6"))
-        self.highlighting_rules.append((QRegularExpression(r"[\.#]?[\w-]+\s*\{"), selector_format))
-        
-       
-        value_format = QTextCharFormat()
-        value_format.setForeground(QColor("#CE9178"))
-        self.highlighting_rules.append((QRegularExpression(r":\s*[^;]*"), value_format))
-        
-     
-        comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#6A9955"))
-        self.highlighting_rules.append((QRegularExpression(r"\/\*[^\*]*\*\/"), comment_format))
-        
-       
-        at_rule_format = QTextCharFormat()
-        at_rule_format.setForeground(QColor("#C586C0"))
-        at_rules = ["@import", "@media", "@keyframes", "@font-face", "@page"]
-        for rule in at_rules:
-            pattern = QRegularExpression(rule)
-            self.highlighting_rules.append((pattern, at_rule_format))
-        
-       
-        number_format = QTextCharFormat()
-        number_format.setForeground(QColor("#B5CEA8"))
-        self.highlighting_rules.append((QRegularExpression(r"\b\d+[pxemsvh%]*\b"), number_format))
-        
-       
-        color_format = QTextCharFormat()
-        color_format.setForeground(QColor("#4EC9B0"))
-        self.highlighting_rules.append((QRegularExpression(r"#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})\b"), color_format))
-
-class TypeScriptHighlighter(JavaScriptHighlighter):
-    """Resaltador para TypeScript (similar a JavaScript con añadidos)"""
-    def setup_highlight_rules(self):
-        super().setup_highlight_rules()
-        
-      
-        type_format = QTextCharFormat()
-        type_format.setForeground(QColor("#4EC9B0"))
-        type_keywords = ["number", "string", "boolean", "any", "void", "null", "undefined",
-                        "object", "never", "unknown", "symbol", "bigint", "readonly"]
-        
-        for word in type_keywords:
-            pattern = QRegularExpression(r"\b" + word + r"\b")
-            self.highlighting_rules.append((pattern, type_format))
-        
-        
-        interface_format = QTextCharFormat()
-        interface_format.setForeground(QColor("#569CD6"))
-        self.highlighting_rules.append((QRegularExpression(r"\binterface\s+(\w+)"), interface_format))
-        self.highlighting_rules.append((QRegularExpression(r"\btype\s+(\w+)"), interface_format))
-        
-     
-        generic_format = QTextCharFormat()
-        generic_format.setForeground(QColor("#4EC9B0"))
-        self.highlighting_rules.append((QRegularExpression(r"<[^>]*>"), generic_format))
-
-class KotlinHighlighter(BaseHighlighter):
-    """Resaltador para Kotlin"""
-    def setup_highlight_rules(self):
-       
-        keyword_format = QTextCharFormat()
-        keyword_format.setForeground(QColor("#569CD6"))
-        keyword_format.setFontWeight(QFont.Bold)
-        keywords = [
-            "as", "as?", "break", "class", "continue", "do", "else", "false", "for",
-            "fun", "if", "in", "!in", "interface", "is", "!is", "null", "object",
-            "package", "return", "super", "this", "throw", "true", "try", "typealias",
-            "val", "var", "when", "while", "by", "catch", "constructor", "delegate",
-            "dynamic", "field", "file", "finally", "get", "import", "init", "param",
-            "property", "receiver", "set", "setparam", "where", "actual", "abstract",
-            "annotation", "companion", "const", "crossinline", "data", "enum", "expect",
-            "external", "final", "infix", "inline", "inner", "internal", "lateinit",
-            "noinline", "open", "operator", "out", "override", "private", "protected",
-            "public", "reified", "sealed", "suspend", "tailrec", "vararg", "it"
-        ]
-        for word in keywords:
-            pattern = QRegularExpression(r"\b" + word + r"\b")
-            self.highlighting_rules.append((pattern, keyword_format))
-        
-      
-        type_format = QTextCharFormat()
-        type_format.setForeground(QColor("#4EC9B0"))
-        types = ["Int", "Long", "Double", "Float", "String", "Boolean", "Char", "Byte",
-                "Short", "Unit", "Any", "Nothing", "Array", "List", "Set", "Map", "MutableList",
-                "MutableSet", "MutableMap", "Sequence", "Pair", "Triple"]
-        for word in types:
-            pattern = QRegularExpression(r"\b" + word + r"\b")
-            self.highlighting_rules.append((pattern, type_format))
-        
-       
-        comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#6A9955"))
-        self.highlighting_rules.append((QRegularExpression("//[^\n]*"), comment_format))
-        
-       
-        string_format = QTextCharFormat()
-        string_format.setForeground(QColor("#CE9178"))
-        self.highlighting_rules.append((QRegularExpression("\"[^\"]*\""), string_format))
-        self.highlighting_rules.append((QRegularExpression("\'[^\']*\'"), string_format))
-       
-        self.highlighting_rules.append((QRegularExpression("\"\"\"[^\"]*\"\"\""), string_format))
-        
-      
-        number_format = QTextCharFormat()
-        number_format.setForeground(QColor("#B5CEA8"))
-        self.highlighting_rules.append((QRegularExpression(r"\b\d+\b"), number_format))
-        self.highlighting_rules.append((QRegularExpression(r"\b\d+\.\d+\b"), number_format))
-        self.highlighting_rules.append((QRegularExpression(r"\b0x[0-9A-Fa-f]+\b"), number_format))
-        
-       
-        annotation_format = QTextCharFormat()
-        annotation_format.setForeground(QColor("#C586C0"))
-        self.highlighting_rules.append((QRegularExpression(r"@[^\s\(\)]+"), annotation_format))
-        
-     
-        function_format = QTextCharFormat()
-        function_format.setForeground(QColor("#DCDCAA"))
-        self.highlighting_rules.append((QRegularExpression(r"\bfun\s+(\w+)"), function_format))
-        self.highlighting_rules.append((QRegularExpression(r"\b\w+\s*\([^\)]*\)\s*\{"), function_format))
-
-class DartHighlighter(BaseHighlighter):
-    """Resaltador para Dart"""
-    def setup_highlight_rules(self):
-     
-        keyword_format = QTextCharFormat()
-        keyword_format.setForeground(QColor("#569CD6"))
-        keyword_format.setFontWeight(QFont.Bold)
-        keywords = [
-            "abstract", "as", "assert", "async", "await", "break", "case", "catch",
-            "class", "const", "continue", "covariant", "default", "deferred", "do",
-            "dynamic", "else", "enum", "export", "extends", "extension", "external",
-            "factory", "false", "final", "finally", "for", "Function", "get", "hide",
-            "if", "implements", "import", "in", "interface", "is", "late", "library",
-            "mixin", "new", "null", "on", "operator", "part", "rethrow", "return",
-            "set", "show", "static", "super", "switch", "sync", "this", "throw",
-            "true", "try", "typedef", "var", "void", "while", "with", "yield"
-        ]
-        for word in keywords:
-            pattern = QRegularExpression(r"\b" + word + r"\b")
-            self.highlighting_rules.append((pattern, keyword_format))
-        
-      
-        type_format = QTextCharFormat()
-        type_format.setForeground(QColor("#4EC9B0"))
-        types = ["int", "double", "num", "String", "bool", "List", "Set", "Map",
-                "Runes", "Symbol", "Object", "Null", "Future", "Stream", "Iterable"]
-        for word in types:
-            pattern = QRegularExpression(r"\b" + word + r"\b")
-            self.highlighting_rules.append((pattern, type_format))
-        
-      
-        comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#6A9955"))
-        self.highlighting_rules.append((QRegularExpression("//[^\n]*"), comment_format))
-        
-    
-        string_format = QTextCharFormat()
-        string_format.setForeground(QColor("#CE9178"))
-        self.highlighting_rules.append((QRegularExpression("\"[^\"]*\""), string_format))
-        self.highlighting_rules.append((QRegularExpression("\'[^\']*\'"), string_format))
-        self.highlighting_rules.append((QRegularExpression(r"\$\{[^\}]*\}"), string_format))
-        
-        
-        number_format = QTextCharFormat()
-        number_format.setForeground(QColor("#B5CEA8"))
-        self.highlighting_rules.append((QRegularExpression(r"\b\d+\b"), number_format))
-        self.highlighting_rules.append((QRegularExpression(r"\b\d+\.\d+\b"), number_format))
-        self.highlighting_rules.append((QRegularExpression(r"\b0x[0-9A-Fa-f]+\b"), number_format))
-        
-       
-        function_format = QTextCharFormat()
-        function_format.setForeground(QColor("#DCDCAA"))
-        self.highlighting_rules.append((QRegularExpression(r"\b\w+\([^\)]*\)\s*\{"), function_format))
-        
-      
-        class_format = QTextCharFormat()
-        class_format.setForeground(QColor("#4EC9B0"))
-        self.highlighting_rules.append((QRegularExpression(r"\bclass\s+(\w+)"), class_format))
-
-class HtmlHighlighter(BaseHighlighter):
-    def setup_highlight_rules(self):
-       
-        tag_format = QTextCharFormat()
-        tag_format.setForeground(QColor("#569CD6"))
-        html_tags = [
-            "html", "head", "body", "div", "span", "p", "a", "img", "ul", "ol",
-            "li", "table", "tr", "td", "th", "form", "input", "button", "select",
-            "option", "textarea", "label", "h1", "h2", "h3", "h4", "h5", "h6",
-            "style", "script", "meta", "link", "title", "header", "footer", "nav",
-            "section", "article", "aside", "main", "figure", "figcaption"
-        ]
-        for tag in html_tags:
-            pattern = QRegularExpression(r"<\/?" + tag + r"\b")
-            self.highlighting_rules.append((pattern, tag_format))
-        
-       
-        attribute_format = QTextCharFormat()
-        attribute_format.setForeground(QColor("#9CDCFE"))
-        html_attrs = [
-            "class", "id", "href", "src", "alt", "title", "type", "value", "name",
-            "placeholder", "required", "disabled", "checked", "selected", "style"
-        ]
-        for attr in html_attrs:
-            pattern = QRegularExpression(attr + r"=")
-            self.highlighting_rules.append((pattern, attribute_format))
-        
-       
-        value_format = QTextCharFormat()
-        value_format.setForeground(QColor("#CE9178"))
-        self.highlighting_rules.append((QRegularExpression(r"=\"[^\"]*\""), value_format))
-        
-        
-        comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#6A9955"))
-        self.highlighting_rules.append((QRegularExpression(r"<!--[^>]*-->"), comment_format))
-        
-       
-        doctype_format = QTextCharFormat()
-        doctype_format.setForeground(QColor("#569CD6"))
-        self.highlighting_rules.append((QRegularExpression(r"<!DOCTYPE[^>]*>"), doctype_format))
-        
-     
-        entity_format = QTextCharFormat()
-        entity_format.setForeground(QColor("#4EC9B0"))
-        self.highlighting_rules.append((QRegularExpression(r"&[a-z]+;"), entity_format))
+        self.highlighter = HighlighterFactory.create_highlighter(file_path, self.document(), self.theme)
 
 class EnhancedAIChatPanel(QDockWidget):
     """Panel de IA mejorado para generación de código con múltiples proveedores"""
@@ -2038,25 +2053,59 @@ class AIResponseEvent(QEvent):
 
 # Crear un delegate personalizado para los iconos
 class FileIconDelegate(QStyledItemDelegate):
+    """Delegate personalizado para mostrar íconos en el explorador"""
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.icon_map = {
-            '.java': '⚙️', '.kt': '⚙️', '.dart': '🎯',
-            '.xml': '📐', '.json': '🔷', '.txt': '📄',
-            '.gradle': '📦', '.kts': '📦'
+            # Lenguajes de programación
+            '.java': '⚙️', '.kt': '⚙️', '.dart': '🎯', '.py': '🐍',
+            '.js': '📜', '.ts': '📜', '.jsx': '⚛️', '.tsx': '⚛️',
+            '.cpp': '🔧', '.c': '🔧', '.h': '🔧', '.cs': '🔷',
+            '.php': '🐘', '.rb': '💎', '.go': '🐹', '.rs': '🦀',
+            '.swift': '🐦', '.m': '🍎', '.mm': '🍎',
+            
+            # Web
+            '.html': '🌐', '.htm': '🌐', '.xml': '📐', '.css': '🎨',
+            '.scss': '🎨', '.sass': '🎨', '.less': '🎨',
+            
+            # Datos
+            '.json': '🔷', '.yaml': '🔷', '.yml': '🔷', '.csv': '📊',
+            '.sql': '🗃️', '.db': '🗃️', '.sqlite': '🗃️',
+            
+            # Documentos
+            '.md': '📝', '.txt': '📄', '.pdf': '📕', '.doc': '📘',
+            '.docx': '📘', '.xls': '📗', '.xlsx': '📗', '.ppt': '📙',
+            
+            # Imágenes
+            '.png': '🖼️', '.jpg': '🖼️', '.jpeg': '🖼️', '.gif': '🖼️',
+            '.svg': '🖼️', '.ico': '🖼️', '.bmp': '🖼️',
+            
+            # Archivos de proyecto
+            '.gradle': '📦', '.kts': '📦', '.pro': '📦', '.cmake': '📦',
+            '.gitignore': '🔒', '.gitattributes': '🔒',
+            
+            # Ejecutables y librerías
+            '.exe': '⚡', '.dll': '📚', '.so': '📚', '.a': '📚',
+            '.jar': '☕', '.war': '☕', '.apk': '📱',
         }
     
     def initStyleOption(self, option, index):
         super().initStyleOption(option, index)
+        
         if index.column() == 0:
             file_path = index.model().filePath(index)
+            file_name = index.model().fileName(index)
             _, ext = os.path.splitext(file_path)
-            icon_text = self.icon_map.get(ext.lower(), '📁')
-            option.text = f"{icon_text} {option.text}"
-
-        # Aplicar el delegate
-        delegate = FileIconDelegate(self.file_tree)
-        self.file_tree.setItemDelegateForColumn(0, delegate)
+            
+            # Determinar si es archivo o carpeta
+            if os.path.isdir(file_path):
+                icon_text = '📁'  # Carpeta
+            else:
+                icon_text = self.icon_map.get(ext.lower(), '📄')  # Archivo
+            
+            # Añadir ícono al texto
+            option.text = f"{icon_text} {file_name}"
 class IllustratorWindow(QMainWindow):
     closed = Signal()
     
@@ -2085,6 +2134,7 @@ class IllustratorWindow(QMainWindow):
         
        
         self.open_files = {}
+        self.open_windowa = {}
         self.current_editor = None
         
       
@@ -2095,13 +2145,115 @@ class IllustratorWindow(QMainWindow):
         self.setup_workspace()
         self.create_workspace_presets()
         self.setup_ui()
+        self.setup_shortcuts()
 
         self.setup_enhanced_docks()
 
         self.create_menu_bar()
         # Configurar características específicas del lenguaje
         self.setup_language_specific_features()
+        self.setup_context_menu()
 
+    def setup_context_menu(self):
+        """Configura el menú contextual para el explorador de archivos"""
+        self.file_tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.file_tree.customContextMenuRequested.connect(self.show_file_explorer_context_menu)
+        
+        # También permitir arrastrar y soltar
+        self.file_tree.setDragEnabled(True)
+        self.file_tree.setAcceptDrops(True)
+        self.file_tree.setDragDropMode(QTreeView.InternalMove)
+    
+    def show_file_explorer_context_menu(self, position):
+        """Muestra el menú contextual en el explorador de archivos"""
+        index = self.file_tree.indexAt(position)
+        if not index.isValid():
+            # Click en área vacía - crear en raíz del proyecto
+            current_path = self.project_path
+        else:
+            current_path = self.file_model.filePath(index)
+            # Si es archivo, usar directorio padre
+            if os.path.isfile(current_path):
+                current_path = os.path.dirname(current_path)
+        
+        # Crear y mostrar menú contextual
+        context_menu = FileExplorerContextMenu(self)
+        context_menu.exec_(self.file_tree.viewport().mapToGlobal(position))
+    
+    def create_file_from_dialog(self, dialog, base_path):
+        """Crea un archivo basado en la selección del diálogo"""
+        file_type = dialog.selected_type
+        filename = dialog.selected_filename
+        
+        # Asegurar extensión correcta
+        if not any(filename.endswith(ext) for ext in file_type.extensions):
+            filename += file_type.extensions[0]
+        
+        file_path = os.path.join(base_path, filename)
+        
+        # Verificar si el archivo ya existe
+        if os.path.exists(file_path):
+            reply = QMessageBox.question(
+                self,
+                "Archivo Existente",
+                f"El archivo '{filename}' ya existe. ¿Desea reemplazarlo?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                return
+        
+        try:
+            # Crear directorios padres si no existen
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
+            # Escribir contenido del archivo
+            with open(file_path, 'w', encoding='utf-8') as f:
+                content = file_type.template
+                
+                # Reemplazar placeholders
+                class_name = filename.replace(" ", "_").replace(".java", "").replace(".kt", "").replace(".dart", "")
+                content = content.replace("{class_name}", class_name)
+                content = content.replace("{interface_name}", class_name)
+                content = content.replace("{layout_name}", class_name.lower())
+                
+                f.write(content)
+            
+            # Actualizar el explorador de archivos
+            self.file_model.setRootPath(self.project_path)
+            
+            # Abrir el archivo en una pestaña
+            self.open_file_in_tab(file_path)
+            
+            # Mostrar mensaje de éxito
+            self.statusBar().showMessage(f"✅ Archivo '{filename}' creado exitosamente", 3000)
+            
+            # Opcional: seleccionar el nuevo archivo en el explorador
+            new_index = self.file_model.index(file_path)
+            self.file_tree.setCurrentIndex(new_index)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo crear el archivo:\n{str(e)}")
+    
+    def update_file_explorer(self):
+        """Actualiza la vista del explorador de archivos"""
+        self.file_model.setRootPath(self.project_path)
+        self.file_tree.setRootIndex(self.file_model.index(self.project_path))
+    
+    # Añadir soporte para arrastrar y soltar
+    def dragEnterEvent(self, event):
+        """Maneja el evento de arrastrar hacia la ventana"""
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+    
+    def dropEvent(self, event):
+        """Maneja el evento de soltar archivos"""
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                file_path = url.toLocalFile()
+                if os.path.isfile(file_path):
+                    self.open_file_in_tab(file_path)
+            event.acceptProposedAction()
     def setup_language_specific_features(self):
         """Configura las características específicas según el lenguaje del proyecto"""
         if self.project_language.lower() == "java":
@@ -2115,14 +2267,14 @@ class IllustratorWindow(QMainWindow):
             self.setup_java_features()
 
     def setup_enhanced_docks(self):
-        """Configuración mejorada de docks - todos inician cerrados"""
+        """Configuración mejorada de docks - respetar visibilidad existente"""
         
         # Remover todos los docks existentes primero
         existing_docks = self.findChildren(QDockWidget)
         for dock in existing_docks:
             self.removeDockWidget(dock)
         
-        # Añadir todos los docks pero OCULTOS
+        # Añadir todos los docks respetando su visibilidad actual
         docks_to_add = [
             (Qt.LeftDockWidgetArea, self.tool_panel),
             (Qt.LeftDockWidgetArea, self.layers_panel),
@@ -2141,13 +2293,14 @@ class IllustratorWindow(QMainWindow):
         if hasattr(self, 'brushes_panel') and self.brushes_panel:
             docks_to_add.append((Qt.BottomDockWidgetArea, self.brushes_panel))
         
-        # Añadir todos los docks ocultos
+        # Añadir todos los docks SIN cambiar su visibilidad
         for area, dock in docks_to_add:
             if dock:
                 self.addDockWidget(area, dock)
                 dock.setVisible(False)  # ← ESTA ES LA CLAVE: OCULTAR AL INICIAR
+                # NO forzar dock.setVisible(False) aquí
         
-        # Agrupar algunos docks relacionados (aunque estén ocultos)
+        # Agrupar algunos docks relacionados
         self.tabifyDockWidget(self.tool_panel, self.layers_panel)
         self.tabifyDockWidget(self.tool_panel, self.file_explorer_panel)
         self.tabifyDockWidget(self.color_panel, self.ai_panel)
@@ -2281,15 +2434,13 @@ class IllustratorWindow(QMainWindow):
             del self.open_windows[window_key]
 
     def setup_workspace(self):
-        self.current_preset = "Default"
+        self.current_preset = "Minimal"  # Usar preset minimal
         self.tool_panel_position = "left"
-        #self.visible_panels = ["Tools", "Layers", "Properties", "Color", "AI Assistant"]
-        self.visible_panels = ["Tools", "Layers", "Color", "AI Assistant"]
-
+        self.visible_panels = []  # Lista vacía - el usuario agregará lo que necesite
     def create_workspace_presets(self):
         self.workspace_presets = {
             "Default": WorkspacePreset("Default", "left", ["Tools", "Layers", "AI Assistant"]),
-            "Minimal": WorkspacePreset("Minimal", "left", ["Tools", "AI Assistant"]),
+            "Minimal": WorkspacePreset("Minimal", "left", ["File Explorer", "AI Assistant"]),
             "Painting": WorkspacePreset("Painting", "right", ["Tools", "Brushes", "Color", "AI Assistant"]),
             "Typography": WorkspacePreset("Typography", "left", ["Tools", "Character", "Paragraph", "AI Assistant"]),
             "Development": WorkspacePreset("Development", "right", ["Tools", "AI Assistant"])
@@ -2336,6 +2487,13 @@ class IllustratorWindow(QMainWindow):
         # Configurar docks - TODOS OCULTOS
         self.setup_enhanced_docks()
         
+         # HACER VISIBLES LOS PANELES DESPUÉS de configurar docks
+        self.ai_panel.setVisible(True)
+        self.file_explorer_panel.setVisible(True)
+
+        self.ai_panel_action.setChecked(True)
+        self.explorer_panel_action.setChecked(True)
+
         self.statusBar().showMessage("Ready | Zoom: 100%")
         
         # NO aplicar ningún preset al inicio (todos cerrados)
@@ -2531,124 +2689,678 @@ class IllustratorWindow(QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, self.ai_panel)
 
     def create_file_explorer_panel(self):
+        """Crea el panel del explorador de archivos con mejoras"""
         self.file_explorer_panel = QDockWidget("Explorador de Archivos", self)
         self.file_explorer_panel.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         
         explorer_widget = QWidget()
         layout = QVBoxLayout(explorer_widget)
         
-        # ===== CONFIGURACIÓN SIMPLIFICADA =====
+        # Barra de herramientas del explorador
+        toolbar_layout = QHBoxLayout()
+        
+        # Botón para crear nuevo archivo
+        new_file_btn = QPushButton("📄")
+        new_file_btn.setToolTip("Nuevo Archivo (Ctrl+N)")
+        new_file_btn.clicked.connect(self.show_new_file_dialog_at_root)
+        new_file_btn.setFixedSize(30, 30)
+        
+        # Botón para crear nueva carpeta
+        new_folder_btn = QPushButton("📁")
+        new_folder_btn.setToolTip("Nueva Carpeta (Ctrl+Shift+N)")
+        new_folder_btn.clicked.connect(self.create_new_folder_at_root)
+        new_folder_btn.setFixedSize(30, 30)
+        
+        # Botón para refrescar
+        refresh_btn = QPushButton("🔄")
+        refresh_btn.setToolTip("Refrescar Explorador")
+        refresh_btn.clicked.connect(self.update_file_explorer)
+        refresh_btn.setFixedSize(30, 30)
+        
+        # Barra de búsqueda
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Buscar archivos...")
+        self.search_input.textChanged.connect(self.filter_file_explorer)
+        
+        toolbar_layout.addWidget(new_file_btn)
+        toolbar_layout.addWidget(new_folder_btn)
+        toolbar_layout.addWidget(refresh_btn)
+        toolbar_layout.addWidget(self.search_input)
+        
+        layout.addLayout(toolbar_layout)
+        
+        # Modelo y vista del árbol de archivos
         self.file_model = QFileSystemModel()
         self.file_model.setRootPath(self.project_path)
+        
+        # Filtrar solo archivos y carpetas (no mostrar unidades, etc.)
+        self.file_model.setFilter(QDir.AllDirs | QDir.Files | QDir.NoDotAndDotDot)
         
         self.file_tree = QTreeView()
         self.file_tree.setModel(self.file_model)
         self.file_tree.setRootIndex(self.file_model.index(self.project_path))
-        self.file_tree.doubleClicked.connect(self.on_file_double_clicked)
         
-        # Ocultar columnas innecesarias (más simple)
-        for i in range(1, 4):  # Columnas 1, 2 y 3
+        # Configurar el árbol
+        self.file_tree.setAnimated(True)
+        self.file_tree.setIndentation(15)
+        self.file_tree.setSortingEnabled(True)
+        self.file_tree.sortByColumn(0, Qt.AscendingOrder)
+        
+        # Ocultar columnas innecesarias
+        for i in range(1, 4):  # Tamaño, Tipo, Fecha de modificación
             self.file_tree.hideColumn(i)
-
+        
+        # Configurar tamaño de íconos
         self.file_tree.setIconSize(QSize(16, 16))
-        # ===== FIN CONFIGURACIÓN SIMPLIFICADA =====
+        
+        # Conectar doble click
+        self.file_tree.doubleClicked.connect(self.on_file_double_clicked)
         
         layout.addWidget(self.file_tree)
         explorer_widget.setLayout(layout)
         self.file_explorer_panel.setWidget(explorer_widget)
-
-    def create_menu_bar(self):
-        menubar = self.menuBar()
         
+        # Aplicar delegate personalizado para íconos
+        delegate = FileIconDelegate(self.file_tree)
+        self.file_tree.setItemDelegateForColumn(0, delegate)
+
+    def show_new_file_dialog_at_root(self):
+        """Muestra el diálogo para crear archivo en la raíz del proyecto"""
+        dialog = NewFileDialog(self.project_language, self, self.project_path)
+        if dialog.exec_() == QDialog.Accepted:
+            self.create_file_from_dialog(dialog, self.project_path)
+
+    def create_new_folder_at_root(self):
+        """Crea una nueva carpeta en la raíz del proyecto"""
+        folder_name, ok = QInputDialog.getText(
+            self, 
+            "Nueva Carpeta", 
+            "Nombre de la carpeta:",
+            text="NuevaCarpeta"
+        )
+        
+        if ok and folder_name:
+            new_folder_path = os.path.join(self.project_path, folder_name)
+            try:
+                os.makedirs(new_folder_path, exist_ok=False)
+                self.update_file_explorer()
+                QMessageBox.information(self, "Éxito", f"Carpeta '{folder_name}' creada correctamente")
+            except FileExistsError:
+                QMessageBox.warning(self, "Error", f"La carpeta '{folder_name}' ya existe")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo crear la carpeta: {str(e)}")
+
+    def filter_file_explorer(self, text):
+        """Filtra los archivos visibles en el explorador"""
+        if not text.strip():
+            # Mostrar todos si no hay texto de búsqueda
+            self.file_model.setNameFilters(["*"])
+        else:
+            # Filtrar por patrón
+            self.file_model.setNameFilters([f"*{text}*"])
+    def show_new_file_dialog_at_root(self):
+        """Muestra el diálogo para crear archivo en la raíz del proyecto"""
+        dialog = NewFileDialog(self.project_language, self, self.project_path)
+        if dialog.exec_() == QDialog.Accepted:
+            self.create_file_from_dialog(dialog, self.project_path)
+
+    def create_new_folder_at_root(self):
+        """Crea una nueva carpeta en la raíz del proyecto"""
+        folder_name, ok = QInputDialog.getText(
+            self, 
+            "Nueva Carpeta", 
+            "Nombre de la carpeta:",
+            text="NuevaCarpeta"
+        )
+        
+        if ok and folder_name:
+            new_folder_path = os.path.join(self.project_path, folder_name)
+            try:
+                os.makedirs(new_folder_path, exist_ok=False)
+                self.update_file_explorer()
+                QMessageBox.information(self, "Éxito", f"Carpeta '{folder_name}' creada correctamente")
+            except FileExistsError:
+                QMessageBox.warning(self, "Error", f"La carpeta '{folder_name}' ya existe")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo crear la carpeta: {str(e)}")
+
+    def filter_file_explorer(self, text):
+        """Filtra los archivos visibles en el explorador"""
+        if not text.strip():
+            # Mostrar todos si no hay texto de búsqueda
+            self.file_model.setNameFilters(["*"])
+        else:
+            # Filtrar por patrón
+            self.file_model.setNameFilters([f"*{text}*"])
+    def setup_shortcuts(self):
+        """Configura los atajos de teclado globales"""
+        # Guardar archivo actual - Ctrl+S
+        self.save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
+        self.save_shortcut.activated.connect(self.save_current_file)
+        
+        # Guardar todos los archivos - Ctrl+Shift+S
+        self.save_all_shortcut = QShortcut(QKeySequence("Ctrl+Shift+S"), self)
+        self.save_all_shortcut.activated.connect(self.save_all_files)
+        
+        # Cerrar pestaña actual - Ctrl+W
+        self.close_tab_shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
+        self.close_tab_shortcut.activated.connect(self.close_current_tab)
+        
+        # Nuevo archivo - Ctrl+N
+        self.new_file_shortcut = QShortcut(QKeySequence("Ctrl+N"), self)
+        self.new_file_shortcut.activated.connect(self.new_file_with_template)
+    def create_menu_bar(self):
+        # Limpiar la barra de menús existente primero
+        menubar = self.menuBar()
+        menubar.clear()
+        
+        # === MENÚ ARCHIVO ===
         file_menu = menubar.addMenu("Archivo")
         
-        new_action = QAction("Nuevo", self)
+        # Nuevo archivo
+        new_action = QAction("Nuevo Archivo", self)
         new_action.setShortcut("Ctrl+N")
-        new_action.triggered.connect(self.new_file)
+        new_action.triggered.connect(self.new_file_with_template)
         file_menu.addAction(new_action)
         
-        open_action = QAction("Abrir", self)
+        # Nuevo proyecto
+        new_project_action = QAction("Nuevo Proyecto", self)
+        new_project_action.setShortcut("Ctrl+Shift+N")
+        new_project_action.triggered.connect(self.new_project)
+        file_menu.addAction(new_project_action)
+        
+        file_menu.addSeparator()
+        
+        # Abrir archivo
+        open_action = QAction("Abrir Archivo", self)
         open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self.open_file)
         file_menu.addAction(open_action)
         
-        save_action = QAction("Guardar", self)
-        save_action.setShortcut("Ctrl+S")
-        save_action.triggered.connect(self.save_current_file)
-        file_menu.addAction(save_action)
+        # Abrir proyecto
+        open_project_action = QAction("Abrir Proyecto", self)
+        open_project_action.setShortcut("Ctrl+Shift+O")
+        open_project_action.triggered.connect(self.open_project)
+        file_menu.addAction(open_project_action)
         
         file_menu.addSeparator()
         
+        # Guardar
+        self.save_action = QAction("Guardar", self)
+        self.save_action.setShortcut("Ctrl+S")
+        self.save_action.triggered.connect(self.save_current_file)
+        self.save_action.setEnabled(False)
+        file_menu.addAction(self.save_action)
+        
+        # Guardar como
+        self.save_as_action = QAction("Guardar Como...", self)
+        self.save_as_action.setShortcut("Ctrl+Shift+S")
+        self.save_as_action.triggered.connect(self.save_file_as)
+        self.save_as_action.setEnabled(False)
+        file_menu.addAction(self.save_as_action)
+        
+        # Guardar todos
+        save_all_action = QAction("Guardar Todos", self)
+        save_all_action.setShortcut("Ctrl+Alt+S")
+        save_all_action.triggered.connect(self.save_all_files)
+        file_menu.addAction(save_all_action)
+        
+        file_menu.addSeparator()
+        
+        # Cerrar pestaña
+        self.close_tab_action = QAction("Cerrar Pestaña", self)
+        self.close_tab_action.setShortcut("Ctrl+W")
+        self.close_tab_action.triggered.connect(self.close_current_tab)
+        self.close_tab_action.setEnabled(False)
+        file_menu.addAction(self.close_tab_action)
+        
+        # Cerrar todos
+        close_all_action = QAction("Cerrar Todos", self)
+        close_all_action.setShortcut("Ctrl+Shift+W")
+        close_all_action.triggered.connect(self.close_all_tabs)
+        file_menu.addAction(close_all_action)
+        
+        file_menu.addSeparator()
+        
+        # Salir
         exit_action = QAction("Salir", self)
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
         
-        edit_menu = menubar.addMenu("Editar")
+        # === MENÚ EDICIÓN ===
+        edit_menu = menubar.addMenu("Edicion")
+        
+        # Deshacer
         undo_action = QAction("Deshacer", self)
         undo_action.setShortcut("Ctrl+Z")
+        undo_action.triggered.connect(self.undo)
         edit_menu.addAction(undo_action)
         
+        # Rehacer
         redo_action = QAction("Rehacer", self)
         redo_action.setShortcut("Ctrl+Y")
+        redo_action.triggered.connect(self.redo)
         edit_menu.addAction(redo_action)
         
-        # ===== MENÚ VER =====
+        edit_menu.addSeparator()
+        
+        # Cortar
+        cut_action = QAction("Cortar", self)
+        cut_action.setShortcut("Ctrl+X")
+        cut_action.triggered.connect(self.cut)
+        edit_menu.addAction(cut_action)
+        
+        # Copiar
+        copy_action = QAction("Copiar", self)
+        copy_action.setShortcut("Ctrl+C")
+        copy_action.triggered.connect(self.copy)
+        edit_menu.addAction(copy_action)
+        
+        # Pegar
+        paste_action = QAction("Pegar", self)
+        paste_action.setShortcut("Ctrl+V")
+        paste_action.triggered.connect(self.paste)
+        edit_menu.addAction(paste_action)
+        
+        edit_menu.addSeparator()
+        
+        # Seleccionar todo
+        select_all_action = QAction("Seleccionar Todo", self)
+        select_all_action.setShortcut("Ctrl+A")
+        select_all_action.triggered.connect(self.select_all)
+        edit_menu.addAction(select_all_action)
+        
+        # Buscar
+        find_action = QAction("Buscar", self)
+        find_action.setShortcut("Ctrl+F")
+        find_action.triggered.connect(self.find)
+        edit_menu.addAction(find_action)
+        
+        # Reemplazar
+        replace_action = QAction("Reemplazar", self)
+        replace_action.setShortcut("Ctrl+H")
+        replace_action.triggered.connect(self.replace)
+        edit_menu.addAction(replace_action)
+        
+        # === MENÚ VER ===
         view_menu = menubar.addMenu("Ver")
         
-        # Submenú para paneles
+        # Paneles de herramientas
         panels_menu = view_menu.addMenu("Paneles")
-        panels_menu.addAction(self.tool_panel.toggleViewAction())
-        panels_menu.addAction(self.layers_panel.toggleViewAction())
-        panels_menu.addAction(self.color_panel.toggleViewAction())
-        panels_menu.addAction(self.ai_panel.toggleViewAction())
-        panels_menu.addAction(self.file_explorer_panel.toggleViewAction())
-        panels_menu.addAction(self.paragraph_panel.toggleViewAction())
-        # Submenú para workspace presets
-        workspace_menu = view_menu.addMenu("Espacio de Trabajo")
-        for preset_name in self.workspace_presets.keys():
-            action = QAction(preset_name, self)
-            action.triggered.connect(lambda checked, name=preset_name: self.apply_workspace_preset(name))
-            workspace_menu.addAction(action)
-        # ===== FIN MENÚ VER =====
         
-        windows_menu = menubar.addMenu("Ventanas")
+        self.tool_panel_action = QAction("Panel de Herramientas", self)
+        self.tool_panel_action.setCheckable(True)
+        self.tool_panel_action.setChecked(False)
+        self.tool_panel_action.triggered.connect(self.toggle_tool_panel)
+        panels_menu.addAction(self.tool_panel_action)
         
-        self.open_designer_action = QAction("Diseñador Android", self)
-        windows_menu.addAction(self.open_designer_action)
+        self.layers_panel_action = QAction("Panel de Capas", self)
+        self.layers_panel_action.setCheckable(True)
+        self.layers_panel_action.setChecked(False)
+        self.layers_panel_action.triggered.connect(self.toggle_layers_panel)
+        panels_menu.addAction(self.layers_panel_action)
         
-        self.open_java_editor_action = QAction("Editor Java", self)
-        windows_menu.addAction(self.open_java_editor_action)
+        self.color_panel_action = QAction("Panel de Colores", self)
+        self.color_panel_action.setCheckable(True)
+        self.color_panel_action.setChecked(False)
+        self.color_panel_action.triggered.connect(self.toggle_color_panel)
+        panels_menu.addAction(self.color_panel_action)
         
-        self.open_xml_editor_action = QAction("Editor XML", self)
-        windows_menu.addAction(self.open_xml_editor_action)
+        self.ai_panel_action = QAction("Panel de IA", self)
+        self.ai_panel_action.setCheckable(True)
+        self.ai_panel_action.setChecked(False)
+        self.ai_panel_action.triggered.connect(self.toggle_ai_panel)
+        panels_menu.addAction(self.ai_panel_action)
         
-        self.open_ai_chat_action = QAction("Chat IA", self)
-        windows_menu.addAction(self.open_ai_chat_action)
+        self.explorer_panel_action = QAction("Explorador de Archivos", self)
+        self.explorer_panel_action.setCheckable(True)
+        self.explorer_panel_action.setChecked(False)
+        self.explorer_panel_action.triggered.connect(self.toggle_explorer_panel)
+        panels_menu.addAction(self.explorer_panel_action)
         
-        self.open_project_explorer_action = QAction("Explorador Proyectos", self)
-        windows_menu.addAction(self.open_project_explorer_action)
+        view_menu.addSeparator()
         
-        windows_menu.addSeparator()
+        # Presets de workspace
+        workspace_menu = view_menu.addMenu("Espacios de Trabajo")
+        
+        default_workspace = QAction("Por Defecto", self)
+        default_workspace.triggered.connect(lambda: self.apply_workspace_preset("Default"))
+        workspace_menu.addAction(default_workspace)
+        
+        minimal_workspace = QAction("Minimo", self)
+        minimal_workspace.triggered.connect(lambda: self.apply_workspace_preset("Minimal"))
+        workspace_menu.addAction(minimal_workspace)
+        
+        painting_workspace = QAction("Pintura", self)
+        painting_workspace.triggered.connect(lambda: self.apply_workspace_preset("Painting"))
+        workspace_menu.addAction(painting_workspace)
+        
+        typography_workspace = QAction("Tipografia", self)
+        typography_workspace.triggered.connect(lambda: self.apply_workspace_preset("Typography"))
+        workspace_menu.addAction(typography_workspace)
+        
+        development_workspace = QAction("Desarrollo", self)
+        development_workspace.triggered.connect(lambda: self.apply_workspace_preset("Development"))
+        workspace_menu.addAction(development_workspace)
+        
+        view_menu.addSeparator()
+        
+        # Zoom
+        zoom_in_action = QAction("Acercar", self)
+        zoom_in_action.setShortcut("Ctrl++")
+        zoom_in_action.triggered.connect(self.zoom_in)
+        view_menu.addAction(zoom_in_action)
+        
+        zoom_out_action = QAction("Alejar", self)
+        zoom_out_action.setShortcut("Ctrl+-")
+        zoom_out_action.triggered.connect(self.zoom_out)
+        view_menu.addAction(zoom_out_action)
+        
+        reset_zoom_action = QAction("Zoom 100%", self)
+        reset_zoom_action.setShortcut("Ctrl+0")
+        reset_zoom_action.triggered.connect(self.reset_zoom)
+        view_menu.addAction(reset_zoom_action)
+        
+        # === MENÚ DISEÑO ===
+        design_menu = menubar.addMenu("Diseno")
+        
+        # Generar código
+        gen_xml_action = QAction("Generar XML", self)
+        gen_xml_action.setShortcut("Ctrl+Shift+X")
+        gen_xml_action.triggered.connect(self.generate_xml_code)
+        design_menu.addAction(gen_xml_action)
+        
+        gen_java_action = QAction("Generar Java", self)
+        gen_java_action.setShortcut("Ctrl+Shift+J")
+        gen_java_action.triggered.connect(self.generate_java_code)
+        design_menu.addAction(gen_java_action)
+        
+        design_menu.addSeparator()
+        
+        # Exportar
+        export_action = QAction("Exportar Proyecto", self)
+        export_action.setShortcut("Ctrl+E")
+        export_action.triggered.connect(self.export_project)
+        design_menu.addAction(export_action)
+        
+        # === MENÚ HERRAMIENTAS ===
+        tools_menu = menubar.addMenu("Herramientas")
+        
+        # Diseñador Android
+        android_designer_action = QAction("Disenador Android", self)
+        android_designer_action.triggered.connect(self.open_android_designer)
+        tools_menu.addAction(android_designer_action)
+        
+        tools_menu.addSeparator()
+        
+        # Editores de código
+        java_editor_action = QAction("Editor Java", self)
+        java_editor_action.triggered.connect(self.open_java_editor)
+        tools_menu.addAction(java_editor_action)
+        
+        xml_editor_action = QAction("Editor XML", self)
+        xml_editor_action.triggered.connect(self.open_xml_editor)
+        tools_menu.addAction(xml_editor_action)
+        
+        tools_menu.addSeparator()
+        
+        # IA Assistant
+        ai_chat_action = QAction("Chat IA", self)
+        ai_chat_action.setShortcut("Ctrl+I")
+        ai_chat_action.triggered.connect(self.open_ai_chat)
+        tools_menu.addAction(ai_chat_action)
+        
+        # Project Explorer
+        project_explorer_action = QAction("Explorador de Proyectos", self)
+        project_explorer_action.triggered.connect(self.open_project_explorer)
+        tools_menu.addAction(project_explorer_action)
+        
+        # === MENÚ VENTANA ===
+        window_menu = menubar.addMenu("Ventana")
+        
+        # Organización de ventanas
+        cascade_action = QAction("Cascada", self)
+        cascade_action.triggered.connect(self.cascade_windows)
+        window_menu.addAction(cascade_action)
+        
+        tile_action = QAction("Mosaico", self)
+        tile_action.triggered.connect(self.tile_windows)
+        window_menu.addAction(tile_action)
+        
+        window_menu.addSeparator()
+        
+        close_all_windows_action = QAction("Cerrar Todas las Ventanas", self)
+        close_all_windows_action.triggered.connect(self.close_all_windows)
+        window_menu.addAction(close_all_windows_action)
+        
+        # === MENÚ AYUDA ===
+        help_menu = menubar.addMenu("Ayuda")
+        
+        # Documentación
+        docs_action = QAction("Documentacion", self)
+        docs_action.triggered.connect(self.show_documentation)
+        help_menu.addAction(docs_action)
+        
+        # Acerca de
+        about_action = QAction("Acerca de", self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
 
-        self.cascade_action = QAction("Cascada", self)
-        self.cascade_action.triggered.connect(self.cascade_windows)
-        windows_menu.addAction(self.cascade_action)
+    # === MÉTODOS PARA LOS MENÚS ===
 
-        self.tile_action = QAction("Mosaico", self)
-        self.tile_action.triggered.connect(self.tile_windows)
-        windows_menu.addAction(self.tile_action)
+    def new_project(self):
+        """Crea un nuevo proyecto"""
+        QMessageBox.information(self, "Nuevo Proyecto", "Funcionalidad de nuevo proyecto en desarrollo")
 
-        self.close_all_action = QAction("Cerrar Todas", self)
-        self.close_all_action.triggered.connect(self.close_all_windows)
-        windows_menu.addAction(self.close_all_action)
-    
-        self.open_designer_action.triggered.connect(self.open_android_designer)
-        self.open_java_editor_action.triggered.connect(self.open_java_editor)
-        self.open_xml_editor_action.triggered.connect(self.open_xml_editor)
-        self.open_ai_chat_action.triggered.connect(self.open_ai_chat)
-        self.open_project_explorer_action.triggered.connect(self.open_project_explorer) 
-        self.open_windows = {}
+    def open_project(self):
+        """Abre un proyecto existente"""
+        QMessageBox.information(self, "Abrir Proyecto", "Funcionalidad de abrir proyecto en desarrollo")
+
+    def undo(self):
+        """Deshacer acción"""
+        if self.current_editor:
+            self.current_editor.undo()
+
+    def redo(self):
+        """Rehacer acción"""
+        if self.current_editor:
+            self.current_editor.redo()
+
+    def cut(self):
+        """Cortar texto"""
+        if self.current_editor:
+            self.current_editor.cut()
+
+    def copy(self):
+        """Copiar texto"""
+        if self.current_editor:
+            self.current_editor.copy()
+
+    def paste(self):
+        """Pegar texto"""
+        if self.current_editor:
+            self.current_editor.paste()
+
+    def select_all(self):
+        """Seleccionar todo el texto"""
+        if self.current_editor:
+            self.current_editor.selectAll()
+
+    def find(self):
+        """Buscar texto"""
+        if self.current_editor:
+            self.show_find_dialog(self.current_editor)
+
+    def replace(self):
+        """Reemplazar texto"""
+        if self.current_editor:
+            self.show_replace_dialog(self.current_editor)
+
+    def show_replace_dialog(self, editor):
+        """Diálogo de reemplazar"""
+        QMessageBox.information(self, "Reemplazar", "Funcionalidad de reemplazar en desarrollo")
+
+    # Métodos para mostrar/ocultar paneles
+    def toggle_tool_panel(self):
+        self.tool_panel.setVisible(self.tool_panel_action.isChecked())
+
+    def toggle_layers_panel(self):
+        self.layers_panel.setVisible(self.layers_panel_action.isChecked())
+
+    def toggle_color_panel(self):
+        self.color_panel.setVisible(self.color_panel_action.isChecked())
+
+    def toggle_ai_panel(self):
+        self.ai_panel.setVisible(self.ai_panel_action.isChecked())
+
+    def toggle_explorer_panel(self):
+        self.file_explorer_panel.setVisible(self.explorer_panel_action.isChecked())
+
+    # Métodos de zoom
+    def zoom_in(self):
+        """Acercar zoom"""
+        self.statusBar().showMessage("Zoom: Acercar")
+
+    def zoom_out(self):
+        """Alejar zoom"""
+        self.statusBar().showMessage("Zoom: Alejar")
+
+    def reset_zoom(self):
+        """Resetear zoom"""
+        self.statusBar().showMessage("Zoom: 100%")
+
+    # Métodos de generación de código
+    def generate_xml_code(self):
+        """Generar código XML"""
+        if hasattr(self, 'ai_panel'):
+            self.ai_panel.generate_xml()
+
+    def generate_java_code(self):
+        """Generar código Java"""
+        if hasattr(self, 'ai_panel'):
+            self.ai_panel.generate_java()
+
+    def export_project(self):
+        """Exportar proyecto"""
+        if hasattr(self, 'ai_panel'):
+            self.ai_panel.export_project()
+
+    # Métodos de ayuda
+    def show_documentation(self):
+        """Mostrar documentación"""
+        QMessageBox.information(self, "Documentación", "Documentación disponible en desarrollo")
+
+    def show_about(self):
+        """Mostrar información acerca de"""
+        about_text = """
+        <h3>Creators Studio</h3>
+        <p>Entorno de desarrollo integrado para diseño Android</p>
+        <p>Versión 1.0</p>
+        <p>Desarrollado con PySide6 y Python</p>
+        <p>© 2024 Creators Studio</p>
+        """
+        QMessageBox.about(self, "Acerca de Creators Studio", about_text)
+    def new_file_with_template(self):
+        """Crea un nuevo archivo usando el diálogo de plantillas"""
+        # Obtener la ruta actual seleccionada en el explorador
+        current_index = self.file_tree.currentIndex()
+        if current_index.isValid():
+            current_path = self.file_model.filePath(current_index)
+            # Si es un archivo, usar el directorio padre
+            if os.path.isfile(current_path):
+                current_path = os.path.dirname(current_path)
+        else:
+            # Si no hay selección, usar la raíz del proyecto
+            current_path = self.project_path
+        
+        # Mostrar diálogo de nuevo archivo
+        dialog = NewFileDialog(self.project_language, self, current_path)
+        if dialog.exec_() == QDialog.Accepted:
+            self.create_file_from_dialog(dialog, current_path)
+
+    def save_file_as(self):
+        """Guarda el archivo actual con un nombre diferente"""
+        if self.current_editor:
+            # Encontrar el archivo actual
+            current_path = None
+            for path, tab_data in self.open_files.items():
+                if tab_data['editor'] == self.current_editor:
+                    current_path = path
+                    break
+            
+            if current_path:
+                # Diálogo para guardar como
+                file_path, ok = QFileDialog.getSaveFileName(
+                    self, 
+                    "Guardar Como", 
+                    current_path, 
+                    "Todos los archivos (*)"
+                )
+                
+                if ok and file_path:
+                    content = self.current_editor.toPlainText()
+                    if self.save_file(file_path, content):
+                        # Cerrar la pestaña actual y abrir la nueva
+                        self.close_current_tab()
+                        self.open_file_in_tab(file_path)
+
+    def save_all_files(self):
+        """Guarda todos los archivos abiertos"""
+        unsaved_files = []
+        
+        for file_path, tab_data in self.open_files.items():
+            if tab_data['editor'].document().isModified():
+                unsaved_files.append(file_path)
+        
+        if not unsaved_files:
+            self.statusBar().showMessage("✅ Todos los archivos están guardados", 2000)
+            return
+        
+        saved_count = 0
+        for file_path in unsaved_files:
+            tab_data = self.open_files[file_path]
+            content = tab_data['editor'].toPlainText()
+            if self.save_file(file_path, content):
+                saved_count += 1
+        
+        self.statusBar().showMessage(f"✅ {saved_count} archivos guardados", 3000)
+
+    def close_current_tab(self):
+        """Cierra la pestaña actual"""
+        current_index = self.tab_widget.currentIndex()
+        if current_index > 0:  # No cerrar la pestaña del emulador (índice 0)
+            self.close_tab(current_index)
+
+    def close_all_tabs(self):
+        """Cierra todas las pestañas excepto el emulador"""
+        # Cerrar desde la última pestaña hasta la primera (excepto emulador)
+        for i in range(self.tab_widget.count() - 1, 0, -1):
+            self.close_tab(i)
+
+    def on_file_modified(self, file_path, modified):
+        """Maneja el evento de modificación de archivo"""
+        if file_path in self.open_files:
+            tab_data = self.open_files[file_path]
+            index = self.tab_widget.indexOf(tab_data['widget'])
+            file_name = os.path.basename(file_path)
+            
+            if modified:
+                self.tab_widget.setTabText(index, f"{file_name} *")
+                # Habilitar acciones de guardar
+                self.save_action.setEnabled(True)
+                self.save_as_action.setEnabled(True)
+            else:
+                self.tab_widget.setTabText(index, file_name)
+                
+                # Deshabilitar acciones de guardar si ningún archivo está modificado
+                any_modified = any(
+                    tab_data['editor'].document().isModified() 
+                    for tab_data in self.open_files.values()
+                )
+                if not any_modified:
+                    self.save_action.setEnabled(False)
+                    self.save_as_action.setEnabled(False)
     def apply_workspace_preset(self, preset_name):
         if preset_name in self.workspace_presets:
             preset = self.workspace_presets[preset_name]
@@ -2775,6 +3487,7 @@ class IllustratorWindow(QMainWindow):
             self.layers_list.setCurrentRow(current_row + 1)
 
     def open_file_in_tab(self, file_path):
+        """Versión corregida para abrir archivos - con soporte para XML"""
         if file_path in self.open_files:
             tab_data = self.open_files[file_path]
             index = self.tab_widget.indexOf(tab_data['widget'])
@@ -2785,58 +3498,195 @@ class IllustratorWindow(QMainWindow):
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
             
-           
+            # Crear pestaña
             tab_widget = QWidget()
-            main_layout = QVBoxLayout(tab_widget)
-            main_layout.setContentsMargins(0, 0, 0, 0)
+            layout = QVBoxLayout(tab_widget)
+            layout.setContentsMargins(0, 0, 0, 0)
             
+            # Si es archivo XML, mostrar el emulador/diseñador
+            if file_path.lower().endswith('.xml'):
+                self.show_xml_designer(tab_widget, content, file_path)
+            else:
+                # Para otros archivos, usar editor de código
+                text_edit = EnhancedCodeEditor(theme="dark")
+                text_edit.setPlainText(content)
+                text_edit.set_highlighter(file_path)
+                layout.addWidget(text_edit)
             
-            scroll_area = QScrollArea()
-            scroll_area.setWidgetResizable(True)
-            scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-            scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            tab_widget.setLayout(layout)
             
-        
-            text_edit = CodeEditor()
-            text_edit.setPlainText(content)
-            text_edit.setFont(QFont("Consolas", 11))
-            
-           
-            text_edit.set_highlighter(file_path)
-            
-            
-            text_edit.document().modificationChanged.connect(
-                lambda modified: self.update_tab_title(file_path)
-            )
-            
-          
-            scroll_area.setWidget(text_edit)
-            main_layout.addWidget(scroll_area)
-            
-            tab_widget.text_edit = text_edit  
-            tab_widget.scroll_area = scroll_area
-           
+            # Configurar pestaña
             file_name = os.path.basename(file_path)
             tab_index = self.tab_widget.addTab(tab_widget, file_name)
             self.tab_widget.setCurrentIndex(tab_index)
             self.tab_widget.setTabToolTip(tab_index, file_path)
             
-
+            # Trackear archivo
             self.open_files[file_path] = {
                 'widget': tab_widget,
-                'editor': text_edit,
-                'original_content': content,
-                'file_path': file_path
+                'editor': text_edit if not file_path.lower().endswith('.xml') else None,
+                'file_path': file_path,
+                'is_modified': False,
+                'is_xml': file_path.lower().endswith('.xml')
             }
-            
-       
-            text_edit.setContextMenuPolicy(Qt.CustomContextMenu)
-            text_edit.customContextMenuRequested.connect(
-                lambda pos: self.show_editor_context_menu(text_edit, pos)
-            )
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo abrir el archivo:\n{str(e)}")
+ 
+    def show_xml_designer(self, parent_widget, xml_content, file_path):
+        """Muestra el diseñador para archivos XML"""
+        layout = parent_widget.layout()
+        
+        # Crear splitter para dividir vista XML/Preview
+        splitter = QSplitter(Qt.Horizontal)
+        
+        # Editor XML (izquierda)
+        xml_editor = EnhancedCodeEditor(theme="dark")
+        xml_editor.setPlainText(xml_content)
+        xml_editor.set_highlighter(file_path)
+        
+        # Vista previa/emulador (derecha)
+        preview_widget = QWidget()
+        preview_layout = QVBoxLayout(preview_widget)
+        
+        # Aquí iría tu lógica del emulador Android
+        preview_label = QLabel("Vista previa del layout XML\n(Emulador Android)")
+        preview_label.setAlignment(Qt.AlignCenter)
+        preview_label.setStyleSheet("font-size: 14px; color: #666; padding: 50px; background-color: #2C2C2C; color: white;")
+        preview_layout.addWidget(preview_label)
+        
+        splitter.addWidget(xml_editor)
+        splitter.addWidget(preview_widget)
+        splitter.setSizes([400, 400])  # Dividir 50/50
+        
+        layout.addWidget(splitter)
+
+    def show_enhanced_context_menu(self, editor, pos):
+        """Menú contextual mejorado con opciones de editor"""
+        menu = QMenu(self)
+        
+        # Acciones de edición
+        actions = [
+            ("📝 Deshacer", "Ctrl+Z", editor.undo, editor.document().isUndoAvailable()),
+            ("🔁 Rehacer", "Ctrl+Y", editor.redo, editor.document().isRedoAvailable()),
+            ("---", None, None, False),
+            ("✂️ Cortar", "Ctrl+X", editor.cut, editor.textCursor().hasSelection()),
+            ("📋 Copiar", "Ctrl+C", editor.copy, editor.textCursor().hasSelection()),
+            ("📄 Pegar", "Ctrl+V", editor.paste, True),
+            ("---", None, None, False),
+            ("🔍 Buscar...", "Ctrl+F", lambda: self.show_find_dialog(editor), True),
+            ("🔄 Reemplazar...", "Ctrl+H", lambda: self.show_replace_dialog(editor), True),
+            ("---", None, None, False),
+            ("⭐ Seleccionar todo", "Ctrl+A", editor.selectAll, True),
+            ("🎨 Formatear código", "Ctrl+Shift+F", lambda: self.format_code(editor), True),
+        ]
+        
+        for text, shortcut, action, enabled in actions:
+            if text == "---":
+                menu.addSeparator()
+            else:
+                action_obj = QAction(text, self)
+                if shortcut:
+                    action_obj.setShortcut(shortcut)
+                if action:
+                    action_obj.triggered.connect(action)
+                action_obj.setEnabled(enabled)
+                menu.addAction(action_obj)
+        
+        menu.exec_(editor.mapToGlobal(pos))
+
+    def show_find_dialog(self, editor):
+        """Diálogo de búsqueda mejorado"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("🔍 Buscar")
+        dialog.setFixedSize(400, 150)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # Campo de búsqueda
+        find_layout = QHBoxLayout()
+        find_layout.addWidget(QLabel("Texto a buscar:"))
+        find_input = QLineEdit()
+        find_input.setPlaceholderText("Ingrese texto para buscar...")
+        find_layout.addWidget(find_input)
+        layout.addLayout(find_layout)
+        
+        # Opciones
+        options_layout = QHBoxLayout()
+        case_sensitive = QCheckBox("Coincidir mayúsculas/minúsculas")
+        whole_word = QCheckBox("Palabra completa")
+        options_layout.addWidget(case_sensitive)
+        options_layout.addWidget(whole_word)
+        layout.addLayout(options_layout)
+        
+        # Botones
+        button_layout = QHBoxLayout()
+        find_next_btn = QPushButton("Buscar siguiente")
+        find_prev_btn = QPushButton("Buscar anterior")
+        close_btn = QPushButton("Cerrar")
+        
+        find_next_btn.clicked.connect(lambda: self.find_text(editor, find_input.text(), 
+                                                        case_sensitive.isChecked(),
+                                                        whole_word.isChecked(), True))
+        find_prev_btn.clicked.connect(lambda: self.find_text(editor, find_input.text(),
+                                                        case_sensitive.isChecked(),
+                                                        whole_word.isChecked(), False))
+        close_btn.clicked.connect(dialog.close)
+        
+        button_layout.addWidget(find_next_btn)
+        button_layout.addWidget(find_prev_btn)
+        button_layout.addWidget(close_btn)
+        layout.addLayout(button_layout)
+        
+        dialog.exec_()
+
+    def find_text(self, editor, text, case_sensitive, whole_word, forward=True):
+        """Buscar texto en el editor"""
+        if not text:
+            return
+        
+        cursor = editor.textCursor()
+        document = editor.document()
+        
+        flags = QTextDocument.FindFlag(0)
+        if not forward:
+            flags = QTextDocument.FindBackward
+        if whole_word:
+            flags |= QTextDocument.FindWholeWords
+        if case_sensitive:
+            flags |= QTextDocument.FindCaseSensitively
+        
+        cursor = document.find(text, cursor, flags)
+        
+        if not cursor.isNull():
+            editor.setTextCursor(cursor)
+        else:
+            QMessageBox.information(self, "Búsqueda", "Texto no encontrado")
+
+    def format_code(self, editor):
+        """Formatear código básico (indentación)"""
+        cursor = editor.textCursor()
+        if cursor.hasSelection():
+            text = cursor.selectedText()
+            # Implementar lógica básica de formateo
+            lines = text.split('\n')
+            formatted_lines = []
+            indent_level = 0
+            
+            for line in lines:
+                stripped = line.strip()
+                if stripped.endswith('}'):
+                    indent_level = max(0, indent_level - 1)
+                
+                formatted_lines.append('    ' * indent_level + stripped)
+                
+                if stripped.endswith('{'):
+                    indent_level += 1
+            
+            formatted_text = '\n'.join(formatted_lines)
+            cursor.insertText(formatted_text)
+        else:
+            QMessageBox.information(self, "Formatear", "Seleccione texto para formatear")
 
     def show_editor_context_menu(self, editor, pos):
         """Muestra el menú contextual para el editor"""
