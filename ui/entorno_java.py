@@ -1,4 +1,6 @@
 import os
+import subprocess
+import platform
 from dotenv import load_dotenv
 import requests
 import threading
@@ -24,11 +26,11 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import (
     QIcon, QAction, QCursor, QColor, QBrush, QTextCursor, QFont,
     QPen, QPainter, QTextFormat, QSyntaxHighlighter, QTextCharFormat, QPalette,
-    QShortcut, QKeySequence
+    QShortcut, QKeySequence, 
 )
 from PySide6.QtCore import (
     Qt, QSize, QPoint, Signal, QDir, QRectF, QSettings, QThread, 
-    Signal as pyqtSignal, QEvent, QTimer, QRect, QRegularExpression 
+    Signal as pyqtSignal, QEvent, QTimer, QRect, QRegularExpression, QDateTime
 )
 class VSCodeHighlighter(QSyntaxHighlighter):
     """Sistema de resaltado similar a Visual Studio Code para TODOS los lenguajes"""
@@ -47,45 +49,45 @@ class VSCodeHighlighter(QSyntaxHighlighter):
             self.colors = {
                 "background": "#1e1e1e",
                 "foreground": "#d4d4d4",
-                "keywords": "#569CD6",        # Azul - palabras clave
-                "types": "#4EC9B0",          # Verde azulado - tipos
-                "strings": "#CE9178",        # Naranja claro - cadenas
-                "comments": "#6A9955",       # Verde oscuro - comentarios
-                "numbers": "#B5CEA8",        # Verde claro - números
-                "functions": "#DCDCAA",      # Amarillo claro - funciones
-                "variables": "#9CDCFE",      # Azul claro - variables
-                "constants": "#4FC1FF",      # Azul brillante - constantes
-                "operators": "#d4d4d4",      # Gris claro - operadores
-                "preprocessor": "#C586C0",   # Púrpura - preprocesador
-                "error": "#f44747",          # Rojo - errores
-                "regex": "#D16969",          # Rojo claro - expresiones regulares
-                "tags": "#569CD6",           # Azul - etiquetas HTML/XML
-                "attributes": "#9CDCFE",     # Azul claro - atributos
-                "values": "#CE9178",         # Naranja - valores
-                "classes": "#4EC9B0",        # Verde azulado - clases
-                "imports": "#C586C0",        # Púrpura - imports
+                "keywords": "#569CD6",       
+                "types": "#4EC9B0",         
+                "strings": "#CE9178",       
+                "comments": "#6A9955",     
+                "numbers": "#B5CEA8",       
+                "functions": "#DCDCAA",     
+                "variables": "#9CDCFE",      
+                "constants": "#4FC1FF",      
+                "operators": "#d4d4d4",      
+                "preprocessor": "#C586C0",   
+                "error": "#f44747",         
+                "regex": "#D16969",          
+                "tags": "#569CD6",         
+                "attributes": "#9CDCFE",     
+                "values": "#CE9178",        
+                "classes": "#4EC9B0",        
+                "imports": "#C586C0",        
             }
-        else:  # light theme
+        else: 
             self.colors = {
                 "background": "#ffffff",
                 "foreground": "#000000",
-                "keywords": "#0000ff",       # Azul
-                "types": "#267f99",          # Verde azulado
-                "strings": "#a31515",        # Rojo oscuro
-                "comments": "#008000",       # Verde
-                "numbers": "#098658",        # Verde
-                "functions": "#795e26",      # Marrón
-                "variables": "#001080",      # Azul oscuro
-                "constants": "#0070c1",      # Azul
-                "operators": "#000000",      # Negro
-                "preprocessor": "#af00db",   # Púrpura
-                "error": "#e51400",          # Rojo
-                "regex": "#811f3f",          # Rojo oscuro
-                "tags": "#800000",           # Marrón rojizo
-                "attributes": "#ff0000",     # Rojo
-                "values": "#0451a5",         # Azul
-                "classes": "#267f99",        # Verde azulado
-                "imports": "#af00db",        # Púrpura
+                "keywords": "#0000ff",       
+                "types": "#267f99",         
+                "strings": "#a31515",        
+                "comments": "#008000",       
+                "numbers": "#098658",        
+                "functions": "#795e26",    
+                "variables": "#001080",     
+                "constants": "#0070c1",     
+                "operators": "#000000",     
+                "preprocessor": "#af00db",   
+                "error": "#e51400",         
+                "regex": "#811f3f",        
+                "tags": "#800000",        
+                "attributes": "#ff0000",     
+                "values": "#0451a5",         
+                "classes": "#267f99",      
+                "imports": "#af00db",    
             }
     
     def create_format(self, color_name, bold=False, italic=False, underline=False):
@@ -102,44 +104,42 @@ class VSCodeHighlighter(QSyntaxHighlighter):
     
     def setup_highlight_rules(self):
         """Configura reglas básicas de resaltado"""
-        # Comentarios
+        
         comment_format = self.create_format("comments", italic=True)
         self.highlighting_rules.append((r"//[^\n]*", comment_format))
         self.highlighting_rules.append((r"#[^\n]*", comment_format))
         
-        # Strings
+        
         string_format = self.create_format("strings")
         self.highlighting_rules.append((r'"[^"\\]*(\\.[^"\\]*)*"', string_format))
         self.highlighting_rules.append((r"'[^'\\]*(\\.[^'\\]*)*'", string_format))
         
-        # Números
+      
         number_format = self.create_format("numbers")
         self.highlighting_rules.append((r"\b\d+\b", number_format))
         self.highlighting_rules.append((r"\b\d+\.\d+\b", number_format))
         
-        # Configurar según lenguaje
+        
         if self.language == "java":
             self.setup_java_rules()
         elif self.language == "xml":
             self.setup_xml_rules()
-        # Añadir más lenguajes según necesidad
+        
     
     def setup_common_rules(self):
         """Reglas comunes a todos los lenguajes de programación"""
-        # Comentarios de una línea (comunes en muchos lenguajes)
+
         comment_format = self.create_format("comments", italic=True)
         self.highlighting_rules.append((r"//[^\n]*", comment_format))
-        self.highlighting_rules.append((r"#[^\n]*", comment_format))  # Python, Ruby, etc.
-        
-        # Números (enteros, decimales, hexadecimales, binarios)
+        self.highlighting_rules.append((r"#[^\n]*", comment_format)) 
+
         number_format = self.create_format("numbers")
-        self.highlighting_rules.append((r"\b\d+\b", number_format))  # Enteros
-        self.highlighting_rules.append((r"\b\d+\.\d+\b", number_format))  # Decimales
-        self.highlighting_rules.append((r"\b0x[0-9A-Fa-f]+\b", number_format))  # Hexadecimal
-        self.highlighting_rules.append((r"\b0b[01]+\b", number_format))  # Binario
-        self.highlighting_rules.append((r"\b\d+[lLfFdD]?\b", number_format))  # Sufijos
-        
-        # Operadores matemáticos y lógicos
+        self.highlighting_rules.append((r"\b\d+\b", number_format)) 
+        self.highlighting_rules.append((r"\b\d+\.\d+\b", number_format)) 
+        self.highlighting_rules.append((r"\b0x[0-9A-Fa-f]+\b", number_format)) 
+        self.highlighting_rules.append((r"\b0b[01]+\b", number_format))  
+        self.highlighting_rules.append((r"\b\d+[lLfFdD]?\b", number_format))  
+
         operator_format = self.create_format("operators")
         operators = [
             r"\=", r"\+", r"\-", r"\*", r"\/", r"\%", r"\=\=", r"\!=", r"\>", r"\<",
@@ -180,7 +180,7 @@ class VSCodeHighlighter(QSyntaxHighlighter):
             self.setup_rust_rules()
         elif self.language == "swift":
             self.setup_swift_rules()
-        # Añadir más lenguajes según sea necesario
+ 
     
     def setup_java_rules(self):
         """Reglas específicas para Java"""
@@ -199,23 +199,22 @@ class VSCodeHighlighter(QSyntaxHighlighter):
             pattern = r"\b" + word + r"\b"
             self.highlighting_rules.append((pattern, keyword_format))
         
-        # Tipos y clases comunes
+       
         type_format = self.create_format("types")
         types = ["String", "Integer", "Double", "Float", "Boolean", "Object", "List", "Map", "Set",
                 "ArrayList", "HashMap", "HashSet", "Number", "Character", "Byte", "Short", "Long", "Void"]
         for word in types:
             self.highlighting_rules.append((r"\b" + word + r"\b", type_format))
         
-        # Anotaciones
+      
         annotation_format = self.create_format("preprocessor")
         self.highlighting_rules.append((r"@\w+", annotation_format))
-        
-        # Cadenas de texto
+      
         string_format = self.create_format("strings")
         self.highlighting_rules.append((r'"[^"\\]*(\\.[^"\\]*)*"', string_format))
         self.highlighting_rules.append((r"'[^'\\]*(\\.[^'\\]*)*'", string_format))
         
-        # Imports
+     
         import_format = self.create_format("imports")
         self.highlighting_rules.append((r"import\s+[\w\.]+;", import_format))
     
@@ -238,7 +237,7 @@ class VSCodeHighlighter(QSyntaxHighlighter):
             pattern = r"\b" + word + r"\b"
             self.highlighting_rules.append((pattern, keyword_format))
         
-        # Template expressions en strings
+    
         template_format = self.create_format("variables")
         self.highlighting_rules.append((r"\$\{.*?\}", template_format))
         self.highlighting_rules.append((r"\$\w+", template_format))
@@ -259,8 +258,7 @@ class VSCodeHighlighter(QSyntaxHighlighter):
         for word in keywords:
             pattern = r"\b" + word + r"\b"
             self.highlighting_rules.append((pattern, keyword_format))
-        
-        # Interpolación de strings
+    
         interpolation_format = self.create_format("variables")
         self.highlighting_rules.append((r"\$\{.*?\}", interpolation_format))
         self.highlighting_rules.append((r"\$\w+", interpolation_format))
@@ -279,11 +277,11 @@ class VSCodeHighlighter(QSyntaxHighlighter):
             pattern = r"\b" + word + r"\b"
             self.highlighting_rules.append((pattern, keyword_format))
         
-        # Decoradores
+      
         decorator_format = self.create_format("preprocessor")
         self.highlighting_rules.append((r"@\w+", decorator_format))
         
-        # Docstrings
+       
         docstring_format = self.create_format("strings")
         self.highlighting_rules.append((r'"""[^"]*"""', docstring_format))
         self.highlighting_rules.append((r"'''[^']*'''", docstring_format))
@@ -303,21 +301,19 @@ class VSCodeHighlighter(QSyntaxHighlighter):
             pattern = r"\b" + word + r"\b"
             self.highlighting_rules.append((pattern, keyword_format))
         
-        # Template literals
+      
         template_format = self.create_format("variables")
         self.highlighting_rules.append((r"\$\{.*?\}", template_format))
     
     def setup_xml_rules(self):
         """Reglas específicas para XML/HTML"""
-        # Etiquetas
+        
         tag_format = self.create_format("tags")
         self.highlighting_rules.append((r"</?\w+", tag_format))
         
-        # Atributos
         attribute_format = self.create_format("attributes")
         self.highlighting_rules.append((r'\b\w+(?=\=)', attribute_format))
         
-        # Valores
         value_format = self.create_format("values")
         self.highlighting_rules.append((r'="[^"]*"', value_format))
     
@@ -343,26 +339,22 @@ class VSCodeHighlighter(QSyntaxHighlighter):
         for word in keywords:
             pattern = r"\b" + word + r"\b"
             self.highlighting_rules.append((pattern, keyword_format))
-    
-    # Añadir métodos setup para otros lenguajes (C#, PHP, Ruby, Go, Rust, Swift)...
-    # Los patrones son similares, solo cambian las palabras clave específicas
+
     
     def highlightBlock(self, text):
         """Aplica el resaltado de sintaxis al bloque de texto"""
-        # Aplicar reglas básicas
+
         for pattern, format in self.highlighting_rules:
             expression = QRegularExpression(pattern)
             matches = expression.globalMatch(text)
             while matches.hasNext():
                 match = matches.next()
                 self.setFormat(match.capturedStart(), match.capturedLength(), format)
-        
-        # Manejar comentarios multilínea
+
         self.highlight_multiline_comments(text)
     
     def highlight_multiline_comments(self, text):
         """Maneja comentarios multilínea (/* */, <!-- -->, etc.)"""
-        # Comentarios multilínea estilo C/Java/JavaScript (/* */)
         start_index = 0
         if self.previousBlockState() != 1:
             start_index = text.find("/*")
@@ -380,8 +372,7 @@ class VSCodeHighlighter(QSyntaxHighlighter):
                 comment_length = end_index - start_index + 2
                 self.setFormat(start_index, comment_length, comment_format)
                 start_index = text.find("/*", start_index + comment_length)
-        
-        # Comentarios XML/HTML (<!-- -->)
+
         start_index = text.find("<!--")
         while start_index >= 0:
             end_index = text.find("-->", start_index)
@@ -399,74 +390,59 @@ class HighlighterFactory:
     """Factory para crear resaltadores específicos basados en la extensión del archivo"""
     
     LANGUAGE_MAP = {
-        # Java
         '.java': 'java',
         '.jav': 'java',
-        
-        # Kotlin
+
         '.kt': 'kt',
         '.kts': 'kt',
-        
-        # Dart
+
         '.dart': 'dart',
-        
-        # Python
+
         '.py': 'py',
         '.pyw': 'py',
-        
-        # JavaScript/TypeScript
+
         '.js': 'js',
         '.jsx': 'js',
         '.ts': 'ts',
         '.tsx': 'ts',
-        
-        # XML/HTML
+
         '.xml': 'xml',
         '.html': 'xml',
         '.htm': 'xml',
         '.xhtml': 'xml',
-        
-        # CSS
+
         '.css': 'css',
         '.scss': 'css',
         '.sass': 'css',
         '.less': 'css',
-        
-        # C/C++
+
         '.c': 'cpp',
         '.cpp': 'cpp',
         '.cc': 'cpp',
         '.h': 'cpp',
         '.hpp': 'cpp',
-        
-        # C#
+
         '.cs': 'cs',
-        
-        # PHP
+
         '.php': 'php',
         '.phtml': 'php',
-        
-        # Ruby
+
         '.rb': 'rb',
         '.ruby': 'rb',
-        
-        # Go
+ 
         '.go': 'go',
-        
-        # Rust
+ 
         '.rs': 'rs',
         '.rust': 'rs',
-        
-        # Swift
+
         '.swift': 'swift',
-        
-        # Otros
+
         '.json': 'js',
-        '.md': 'xml',  # Markdown como HTML
+        '.md': 'xml',  
         '.sql': 'sql',
-        '.sh': 'py',   # Shell como Python
-        '.bat': 'py',  # Batch como Python
-        '.ps1': 'py',  # PowerShell como Python
+        '.sh': 'py',   
+        '.bat': 'py',  
+        '.ps1': 'py',  
     }
     
     @staticmethod
@@ -492,7 +468,7 @@ class NewFileDialog(QDialog):
     def __init__(self, project_language, parent=None, current_path=None):
         super().__init__(parent)
         self.project_language = project_language
-        self.current_path = current_path  # Nueva: ruta donde se creará el archivo
+        self.current_path = current_path 
         self.selected_type = None
         self.setup_ui()
         
@@ -506,7 +482,7 @@ class NewFileDialog(QDialog):
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
         self.tab_widget.currentChanged.connect(self.tab_changed)
         
-        # Contenedor inicial CENTRO VACÍO (emulador oculto)
+
         self.initial_container = QWidget()
         self.initial_layout = QVBoxLayout(self.initial_container)
         
@@ -516,12 +492,10 @@ class NewFileDialog(QDialog):
         self.initial_message.setWordWrap(True)
         self.initial_layout.addWidget(self.initial_message)
         
-        # Solo añadir la pestaña inicial (centro vacío)
         self.tab_widget.addTab(self.initial_container, "Inicio")
         
         self.main_layout.addWidget(self.tab_widget)
-        
-        # Crear todos los paneles (pero iniciarán ocultos excepto los que queremos)
+
         self.create_tool_panel()
         self.create_layers_panel()
         self.create_color_panel()
@@ -532,15 +506,12 @@ class NewFileDialog(QDialog):
         self.create_file_explorer_panel()
         
         self.create_menu_bar()
-        
-        # Configurar docks - SOLO CHAT IA y EXPLORER VISIBLES
+
         self.setup_enhanced_docks()
-        
-        # FORZAR VISIBILIDAD DE PANELES ESPECÍFICOS
+
         self.ai_panel.setVisible(True)
         self.file_explorer_panel.setVisible(True)
-        
-        # Actualizar acciones del menú
+
         self.ai_panel_action.setChecked(True)
         self.explorer_panel_action.setChecked(True)
         
@@ -549,8 +520,7 @@ class NewFileDialog(QDialog):
     def load_file_types(self):
         """Carga los tipos de archivo disponibles según el lenguaje del proyecto"""
         file_types = []
-        
-        # Lenguajes específicos
+
         if self.project_language.lower() == "java":
             file_types.extend([
                 FileType("Clase Java", [".java"], "⚙️", 
@@ -580,8 +550,7 @@ class NewFileDialog(QDialog):
                 FileType("Dart Class", [".dart"], "📦", 
                         "class {class_name} {\n  // TODO: Agregar código aquí\n}")
             ])
-        
-        # Archivos comunes a todos los proyectos
+
         common_types = [
             FileType("Layout XML", [".xml"], "📐", 
                     '<?xml version="1.0" encoding="utf-8"?>\n<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"\n    android:layout_width="match_parent"\n    android:layout_height="match_parent"\n    android:orientation="vertical">\n    \n</LinearLayout>'),
@@ -605,8 +574,7 @@ class NewFileDialog(QDialog):
         ]
         
         file_types.extend(common_types)
-        
-        # Añadir al listado
+
         for file_type in file_types:
             item = QListWidgetItem(f"{file_type.icon} {file_type.name} ({', '.join(file_type.extensions)})")
             item.setData(Qt.UserRole, file_type)
@@ -626,7 +594,6 @@ class NewFileDialog(QDialog):
             QMessageBox.warning(self, "Error", "Ingrese un nombre para el archivo")
             return
         
-        # Validar caracteres no permitidos en nombres de archivo
         invalid_chars = ['<', '>', ':', '"', '|', '?', '*', '\\', '/']
         if any(char in filename for char in invalid_chars):
             QMessageBox.warning(self, "Error", f"El nombre contiene caracteres no permitidos: {''.join(invalid_chars)}")
@@ -648,11 +615,9 @@ class NewFileDialog(QDialog):
         if not filename:
             self.preview_editor.setPlainText("")
             return
-        
-        # Generar preview del contenido
+
         preview = file_type.template
-        
-        # Reemplazar placeholders
+
         class_name = filename.replace(" ", "_").replace(".java", "").replace(".kt", "").replace(".dart", "")
         preview = preview.replace("{class_name}", class_name)
         preview = preview.replace("{interface_name}", class_name)
@@ -669,40 +634,34 @@ class FileExplorerContextMenu(QMenu):
     
     def setup_menu(self):
         """Configura las opciones del menú contextual"""
-        # Opción: Nuevo Archivo
         new_file_action = QAction("📄 Nuevo Archivo", self)
         new_file_action.setShortcut("Ctrl+N")
         new_file_action.triggered.connect(self.create_new_file)
         self.addAction(new_file_action)
-        
-        # Opción: Nueva Carpeta
+
         new_folder_action = QAction("📁 Nueva Carpeta", self)
         new_folder_action.setShortcut("Ctrl+Shift+N")
         new_folder_action.triggered.connect(self.create_new_folder)
         self.addAction(new_folder_action)
         
         self.addSeparator()
-        
-        # Opción: Renombrar
+
         rename_action = QAction("✏️ Renombrar", self)
         rename_action.setShortcut("F2")
         rename_action.triggered.connect(self.rename_item)
         self.addAction(rename_action)
-        
-        # Opción: Eliminar
+
         delete_action = QAction("🗑️ Eliminar", self)
         delete_action.setShortcut("Del")
         delete_action.triggered.connect(self.delete_item)
         self.addAction(delete_action)
         
         self.addSeparator()
-        
-        # Opción: Copiar Ruta
+
         copy_path_action = QAction("📋 Copiar Ruta", self)
         copy_path_action.triggered.connect(self.copy_path)
         self.addAction(copy_path_action)
-        
-        # Opción: Abrir en Explorador del Sistema
+
         open_explorer_action = QAction("📂 Abrir en Explorador", self)
         open_explorer_action.triggered.connect(self.open_in_system_explorer)
         self.addAction(open_explorer_action)
@@ -714,7 +673,6 @@ class FileExplorerContextMenu(QMenu):
             if index.isValid():
                 current_path = self.parent.file_model.filePath(index)
                 
-                # Si es un archivo, usar el directorio padre
                 if os.path.isfile(current_path):
                     current_path = os.path.dirname(current_path)
                 
@@ -733,8 +691,7 @@ class FileExplorerContextMenu(QMenu):
             index = self.parent.file_tree.currentIndex()
             if index.isValid():
                 current_path = self.parent.file_model.filePath(index)
-                
-                # Si es un archivo, usar el directorio padre
+
                 if os.path.isfile(current_path):
                     current_path = os.path.dirname(current_path)
                 
@@ -825,17 +782,16 @@ class FileExplorerContextMenu(QMenu):
             index = self.parent.file_tree.currentIndex()
             if index.isValid():
                 current_path = self.parent.file_model.filePath(index)
-                
-                # Si es un archivo, abrir su directorio padre
+
                 if os.path.isfile(current_path):
                     current_path = os.path.dirname(current_path)
                 
                 try:
                     if platform.system() == "Windows":
                         os.startfile(current_path)
-                    elif platform.system() == "Darwin":  # macOS
+                    elif platform.system() == "Darwin":
                         subprocess.run(["open", current_path])
-                    else:  # Linux
+                    else:  
                         subprocess.run(["xdg-open", current_path])
                 except Exception as e:
                     QMessageBox.warning(self.parent, "Error", f"No se pudo abrir el explorador: {str(e)}")
@@ -1032,12 +988,12 @@ class UIElement:
             bg_reference = f"\"{bg_color}\""
             
         return f'''<{self.androidWidgetType}
-    android:id="@+id/{self.id}"
-    android:layout_width="{self.width}px"
-    android:layout_height="{self.height}px"
-    android:layout_marginLeft="{self.x}px"
-    android:layout_marginTop="{self.y}px"
-    android:background={bg_reference} />\n'''
+            android:id="@+id/{self.id}"
+            android:layout_width="{self.width}px"
+            android:layout_height="{self.height}px"
+            android:layout_marginLeft="{self.x}px"
+            android:layout_marginTop="{self.y}px"
+            android:background={bg_reference} />\n'''
     
     def generateTextViewXML(self):
         """Genera XML para TextView"""
@@ -1046,14 +1002,14 @@ class UIElement:
         text_size = self.properties.get("textSize", "14sp")
         
         return f'''<TextView
-    android:id="@+id/{self.id}"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginLeft="{self.x}px"
-    android:layout_marginTop="{self.y}px"
-    android:text="{text}"
-    android:textColor="{text_color}"
-    android:textSize="{text_size}" />\n'''
+            android:id="@+id/{self.id}"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="{self.x}px"
+            android:layout_marginTop="{self.y}px"
+            android:text="{text}"
+            android:textColor="{text_color}"
+            android:textSize="{text_size}" />\n'''
     
     def generateButtonXML(self):
         """Genera XML para Button"""
@@ -1062,14 +1018,14 @@ class UIElement:
         text_color = self.properties.get("textColor", "#FFFFFF")
         
         return f'''<Button
-    android:id="@+id/{self.id}"
-    android:layout_width="{self.width}px"
-    android:layout_height="{self.height}px"
-    android:layout_marginLeft="{self.x}px"
-    android:layout_marginTop="{self.y}px"
-    android:text="{text}"
-    android:backgroundTint="{bg_color}"
-    android:textColor="{text_color}" />\n'''
+            android:id="@+id/{self.id}"
+            android:layout_width="{self.width}px"
+            android:layout_height="{self.height}px"
+            android:layout_marginLeft="{self.x}px"
+            android:layout_marginTop="{self.y}px"
+            android:text="{text}"
+            android:backgroundTint="{bg_color}"
+            android:textColor="{text_color}" />\n'''
     
     def generateEditTextXML(self):
         """Genera XML para EditText"""
@@ -1077,23 +1033,23 @@ class UIElement:
         input_type = self.properties.get("inputType", "text")
         
         return f'''<EditText
-    android:id="@+id/{self.id}"
-    android:layout_width="{self.width}px"
-    android:layout_height="{self.height}px"
-    android:layout_marginLeft="{self.x}px"
-    android:layout_marginTop="{self.y}px"
-    android:hint="{hint}"
-    android:inputType="{input_type}" />\n'''
+            android:id="@+id/{self.id}"
+            android:layout_width="{self.width}px"
+            android:layout_height="{self.height}px"
+            android:layout_marginLeft="{self.x}px"
+            android:layout_marginTop="{self.y}px"
+            android:hint="{hint}"
+            android:inputType="{input_type}" />\n'''
     
     def generateShapeDrawable(self, drawable_name, color, corner_radius):
         """Genera un archivo XML de shape drawable"""
         corner_radius_value = corner_radius.replace("dp", "")
         
         shape_xml = f'''<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="{color}" />
-    <corners android:radius="{corner_radius_value}dp" />
-</shape>'''
+            <shape xmlns:android="http://schemas.android.com/apk/res/android">
+                <solid android:color="{color}" />
+                <corners android:radius="{corner_radius_value}dp" />
+            </shape>'''
         
         return shape_xml, drawable_name
     
@@ -1108,14 +1064,14 @@ class UIElement:
     def generateButtonJava(self):
         """Genera código Java para Button"""
         return f'''Button {self.id} = findViewById(R.id.{self.id});
-{self.id}.setOnClickListener(v -> {{
-    // TODO: Implement {self.id} click logic
-}});\n'''
+            {self.id}.setOnClickListener(v -> {{
+                // TODO: Implement {self.id} click logic
+            }});\n'''
     
     def generateEditTextJava(self):
         """Genera código Java para EditText"""
         return f'''EditText {self.id} = findViewById(R.id.{self.id});
-// Add text change listeners or validation as needed\n'''
+            // Add text change listeners or validation as needed\n'''
 
 class CodeGenerator:
     """Clase para generar código completo de Android"""
@@ -1461,7 +1417,6 @@ class LineNumberArea(QWidget):
     def paintEvent(self, event):
         self.editor.line_number_area_paint_event(event)
 
-# REEMPLAZAR la clase CodeEditor completa con esta versión mejorada
 class EnhancedCodeEditor(QPlainTextEdit):
     """Editor de código mejorado con resaltado estilo VS Code y números de línea CORREGIDO"""
     
@@ -1499,19 +1454,16 @@ class EnhancedCodeEditor(QPlainTextEdit):
                 }
             """)
         
-        # Configurar fuente monoespaciada
-        font = QFont("Consolas", 12)  # Usar Consolas que es más común
+        font = QFont("Consolas", 12) 
         font.setStyleHint(QFont.Monospace)
         self.setFont(font)
         
-        # Habilitar tabulaciones con 4 espacios
         self.setTabStopDistance(40)
     
     def setup_line_numbers(self):
         """Configura el área de números de línea CORREGIDO"""
         self.line_number_area = LineNumberArea(self)
-        
-        # Conectar señales CORREGIDO - usar nombres correctos
+
         self.blockCountChanged.connect(self.update_line_number_area_width)
         self.updateRequest.connect(self.update_line_number_area)
         self.cursorPositionChanged.connect(self.highlight_current_line)
@@ -1599,14 +1551,17 @@ class EnhancedCodeEditor(QPlainTextEdit):
         self.highlighter = HighlighterFactory.create_highlighter(file_path, self.document(), self.theme)
 
 class EnhancedAIChatPanel(QDockWidget):
-    """Panel de IA mejorado para generación de código con múltiples proveedores"""
+    """Panel de IA mejorado con acceso total al sistema de archivos y ejecución de código"""
+    
     def __init__(self, code_generator, parent=None):
-        super().__init__("AI Assistant", parent)
+        super().__init__("AI Assistant - Programación Total", parent)
         self.code_generator = code_generator
+        self.parent_window = parent
         self.conversation_history = []
         self.current_provider = None
         self.available_providers = []
         self.current_worker = None
+        self.project_path = getattr(parent, 'project_path', os.getcwd())
         self.setupUI()
         self.load_api_keys()
         self.detect_available_providers()
@@ -1615,7 +1570,7 @@ class EnhancedAIChatPanel(QDockWidget):
         chat_widget = QWidget()
         layout = QVBoxLayout(chat_widget)
         
-       
+        # Panel de proveedores
         provider_layout = QHBoxLayout()
         provider_layout.addWidget(QLabel("Proveedor IA:"))
         
@@ -1623,7 +1578,6 @@ class EnhancedAIChatPanel(QDockWidget):
         self.provider_combo.currentTextChanged.connect(self.change_ai_provider)
         provider_layout.addWidget(self.provider_combo)
         
- 
         self.config_btn = QPushButton("Configurar API")
         self.config_btn.clicked.connect(self.show_api_config_dialog)
         provider_layout.addWidget(self.config_btn)
@@ -1631,16 +1585,25 @@ class EnhancedAIChatPanel(QDockWidget):
         provider_layout.addStretch()
         layout.addLayout(provider_layout)
         
-     
+        # Historial de chat mejorado
         self.chat_history = QTextEdit()
         self.chat_history.setReadOnly(True)
-        self.chat_history.setPlaceholderText("Conversa con la IA sobre tu diseño...")
+        self.chat_history.setPlaceholderText("Conversa con la IA sobre programación, archivos, ejecución de código...")
+        self.chat_history.setStyleSheet("""
+            QTextEdit {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+                border: 1px solid #3e3e42;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-size: 12px;
+            }
+        """)
         layout.addWidget(self.chat_history)
         
-     
+        # Panel de entrada mejorado
         input_layout = QHBoxLayout()
         self.user_input = QLineEdit()
-        self.user_input.setPlaceholderText("Escribe tu mensaje o pide generar código...")
+        self.user_input.setPlaceholderText("Escribe tu mensaje, pide crear/modificar archivos, ejecutar código...")
         self.user_input.returnPressed.connect(self.send_message)
         input_layout.addWidget(self.user_input)
         
@@ -1648,71 +1611,211 @@ class EnhancedAIChatPanel(QDockWidget):
         self.send_button.clicked.connect(self.send_message)
         input_layout.addWidget(self.send_button)
         
-
-        code_buttons_layout = QHBoxLayout()
-        self.gen_xml_btn = QPushButton("Generar XML")
-        self.gen_xml_btn.clicked.connect(self.generate_xml)
-        self.gen_java_btn = QPushButton("Generar Java")
-        self.gen_java_btn.clicked.connect(self.generate_java)
-        self.export_btn = QPushButton("Exportar Proyecto")
-        self.export_btn.clicked.connect(self.export_project)
+        # Botones de acciones rápidas
+        quick_actions_layout = QHBoxLayout()
         
-        code_buttons_layout.addWidget(self.gen_xml_btn)
-        code_buttons_layout.addWidget(self.gen_java_btn)
-        code_buttons_layout.addWidget(self.export_btn)
+        self.file_actions_btn = QPushButton("📁 Archivos")
+        self.file_actions_btn.clicked.connect(self.show_file_actions_menu)
+        
+        self.code_actions_btn = QPushButton("⚡ Ejecutar")
+        self.code_actions_btn.clicked.connect(self.show_code_actions_menu)
+        
+        self.project_actions_btn = QPushButton("📦 Proyecto")
+        self.project_actions_btn.clicked.connect(self.show_project_actions_menu)
+        
+        quick_actions_layout.addWidget(self.file_actions_btn)
+        quick_actions_layout.addWidget(self.code_actions_btn)
+        quick_actions_layout.addWidget(self.project_actions_btn)
+        quick_actions_layout.addStretch()
         
         layout.addLayout(input_layout)
-        layout.addLayout(code_buttons_layout)
+        layout.addLayout(quick_actions_layout)
+        
         chat_widget.setLayout(layout)
         self.setWidget(chat_widget)
         
-       
-        self.add_message("Asistente IA", "¡Hola! Estoy listo para ayudarte a generar código Android. Puedes diseñar tu interfaz y yo me encargaré de crear el código XML y Java correspondiente.")
+        # Mensaje de bienvenida mejorado
+        self.add_system_message("🚀 **Asistente de Programación Total Iniciado**")
+        self.add_system_message("**Capacidades disponibles:**")
+        self.add_system_message("• 📁 Gestión completa de archivos (crear, modificar, eliminar)")
+        self.add_system_message("• ⚡ Ejecución de código (Java, Kotlin, Python, etc.)")
+        self.add_system_message("• 🔍 Análisis y búsqueda en proyectos")
+        self.add_system_message("• 📊 Generación de código inteligente")
+        self.add_system_message("• 🛠️ Debugging y optimización")
+    
+    def change_ai_provider(self, provider_name):
+        """Cambia el proveedor de IA seleccionado"""
+        self.current_provider = provider_name
 
     def show_api_config_dialog(self):
-        """Muestra diálogo para configurar API keys"""
+        """Muestra el diálogo de configuración de API (pendiente de implementar)"""
+        QMessageBox.information(self, "Configurar API", "Funcionalidad de configuración de API en desarrollo.")    
+    
+    def show_file_actions_menu(self):
+        """Menú de acciones rápidas para archivos"""
+        menu = QMenu(self)
+        
+        actions = [
+            ("📄 Crear Archivo", self.quick_create_file),
+            ("📁 Crear Carpeta", self.quick_create_folder),
+            ("🔍 Listar Archivos", self.list_project_files),
+            ("📊 Analizar Proyecto", self.analyze_project),
+            ("📝 Editar Archivo", self.quick_edit_file),
+            ("🗑️ Eliminar Archivo", self.quick_delete_file),
+        ]
+        
+        for text, action in actions:
+            act = QAction(text, self)
+            act.triggered.connect(action)
+            menu.addAction(act)
+        
+        menu.exec_(self.file_actions_btn.mapToGlobal(QPoint(0, self.file_actions_btn.height())))
+
+    def show_code_actions_menu(self):
+        """Menú de acciones rápidas para código"""
+        menu = QMenu(self)
+        
+        actions = [
+            ("▶️ Ejecutar Proyecto", self.run_project),
+            ("🔨 Compilar", self.compile_project),
+            ("🐛 Debug", self.debug_project),
+            ("📋 Analizar Sintaxis", self.check_syntax),
+            ("⚡ Ejecutar Snippet", self.run_code_snippet),
+        ]
+        
+        for text, action in actions:
+            act = QAction(text, self)
+            act.triggered.connect(action)
+            menu.addAction(act)
+        
+        menu.exec_(self.code_actions_btn.mapToGlobal(QPoint(0, self.code_actions_btn.height())))
+
+    def show_project_actions_menu(self):
+        """Menú de acciones rápidas para proyectos"""
+        menu = QMenu(self)
+        
+        actions = [
+            ("📊 Estadísticas", self.project_stats),
+            ("🔍 Buscar en Código", self.search_in_code),
+            ("📋 Dependencias", self.show_dependencies),
+            ("🔄 Refactorizar", self.refactor_project),
+            ("📦 Exportar", self.export_project_quick),
+        ]
+        
+        for text, action in actions:
+            act = QAction(text, self)
+            act.triggered.connect(action)
+            menu.addAction(act)
+        
+        menu.exec_(self.project_actions_btn.mapToGlobal(QPoint(0, self.project_actions_btn.height())))
+
+    # ===== FUNCIONES DE GESTIÓN DE ARCHIVOS =====
+    
+    def list_project_files(self):
+        """Lista todos los archivos del proyecto"""
+        try:
+            files_info = []
+            for root, dirs, files in os.walk(self.project_path):
+                level = root.replace(self.project_path, '').count(os.sep)
+                indent = ' ' * 2 * level
+                files_info.append(f"{indent}📁 {os.path.basename(root)}/")
+                subindent = ' ' * 2 * (level + 1)
+                for file in files:
+                    size = os.path.getsize(os.path.join(root, file))
+                    files_info.append(f"{subindent}📄 {file} ({size} bytes)")
+            
+            file_tree = "\n".join(files_info[:50])  # Limitar a 50 elementos
+            self.add_system_message(f"**Estructura del proyecto:**\n```\n{file_tree}\n```")
+            
+            # Estadísticas
+            total_files = sum([len(files) for r, d, files in os.walk(self.project_path)])
+            total_size = sum([os.path.getsize(os.path.join(r, f)) 
+                            for r, d, files in os.walk(self.project_path) 
+                            for f in files])
+            
+            self.add_system_message(f"**Estadísticas:** {total_files} archivos, {total_size} bytes totales")
+            
+        except Exception as e:
+            self.add_error_message(f"Error al listar archivos: {str(e)}")
+
+    def quick_create_file(self):
+        """Crea un archivo rápidamente"""
+        file_name, ok = QInputDialog.getText(self, "Crear Archivo", "Nombre del archivo:")
+        if ok and file_name:
+            file_path = os.path.join(self.project_path, file_name)
+            try:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write("")
+                self.add_success_message(f"✅ Archivo '{file_name}' creado exitosamente")
+                
+                # Abrir el archivo en el editor si está disponible
+                if hasattr(self.parent_window, 'open_file_in_tab'):
+                    self.parent_window.open_file_in_tab(file_path)
+                    
+            except Exception as e:
+                self.add_error_message(f"❌ Error al crear archivo: {str(e)}")
+
+    def quick_create_folder(self):
+        """Crea una carpeta rápidamente"""
+        folder_name, ok = QInputDialog.getText(self, "Crear Carpeta", "Nombre de la carpeta:")
+        if ok and folder_name:
+            folder_path = os.path.join(self.project_path, folder_name)
+            try:
+                os.makedirs(folder_path, exist_ok=True)
+                self.add_success_message(f"✅ Carpeta '{folder_name}' creada exitosamente")
+            except Exception as e:
+                self.add_error_message(f"❌ Error al crear carpeta: {str(e)}")
+
+    def quick_edit_file(self):
+        """Edita un archivo existente"""
+        files = []
+        for root, dirs, filenames in os.walk(self.project_path):
+            for file in filenames:
+                files.append(os.path.join(root, file))
+        
+        if not files:
+            self.add_warning_message("No hay archivos en el proyecto")
+            return
+            
+        file_path, ok = QInputDialog.getItem(self, "Editar Archivo", "Selecciona un archivo:", 
+                                           files, 0, False)
+        if ok and file_path:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Mostrar diálogo de edición
+                self.show_file_editor(file_path, content)
+                
+            except Exception as e:
+                self.add_error_message(f"❌ Error al leer archivo: {str(e)}")
+
+    def show_file_editor(self, file_path, content):
+        """Muestra un editor para modificar archivos"""
         dialog = QDialog(self)
-        dialog.setWindowTitle("Configurar API Keys")
-        dialog.setModal(True)
-        dialog.setFixedSize(500, 300)
+        dialog.setWindowTitle(f"Editando: {os.path.basename(file_path)}")
+        dialog.setMinimumSize(600, 400)
         
         layout = QVBoxLayout(dialog)
         
-       
-        deepseek_layout = QHBoxLayout()
-        deepseek_layout.addWidget(QLabel("DeepSeek API Key:"))
-        deepseek_input = QLineEdit()
-        deepseek_input.setPlaceholderText("sk-...")
-        deepseek_input.setText(os.getenv("DEEPSEEK_API_KEY", ""))
-        deepseek_input.setEchoMode(QLineEdit.Password)
-        deepseek_layout.addWidget(deepseek_input)
-        layout.addLayout(deepseek_layout)
+        # Editor de código
+        editor = QPlainTextEdit()
+        editor.setPlainText(content)
+        editor.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+                font-family: 'Consolas', monospace;
+                font-size: 12px;
+            }
+        """)
+        layout.addWidget(editor)
         
-       
-        hf_layout = QHBoxLayout()
-        hf_layout.addWidget(QLabel("Hugging Face API Key:"))
-        hf_input = QLineEdit()
-        hf_input.setPlaceholderText("hf_...")
-        hf_input.setText(os.getenv("HUGGINGFACE_API_KEY", ""))
-        hf_input.setEchoMode(QLineEdit.Password)
-        hf_layout.addWidget(hf_input)
-        layout.addLayout(hf_layout)
-        
-        
-        info_label = QLabel(
-            "Para obtener API keys:\n"
-            "• DeepSeek: https://platform.deepseek.com/\n"
-            "• Hugging Face: https://huggingface.co/settings/tokens"
-        )
-        info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: #666; font-size: 11px;")
-        layout.addWidget(info_label)
-        
-        
+        # Botones
         button_layout = QHBoxLayout()
-        save_btn = QPushButton("Guardar")
-        save_btn.clicked.connect(lambda: self.save_api_keys(dialog, deepseek_input.text(), hf_input.text()))
-        cancel_btn = QPushButton("Cancelar")
+        save_btn = QPushButton("💾 Guardar")
+        save_btn.clicked.connect(lambda: self.save_edited_file(file_path, editor.toPlainText(), dialog))
+        cancel_btn = QPushButton("❌ Cancelar")
         cancel_btn.clicked.connect(dialog.reject)
         
         button_layout.addWidget(save_btn)
@@ -1721,327 +1824,641 @@ class EnhancedAIChatPanel(QDockWidget):
         
         dialog.exec_()
 
-    def save_api_keys(self, dialog, deepseek_key, hf_key):
-        """Guarda las API keys en el archivo .env"""
-        deepseek_key = deepseek_key.strip()
-        hf_key = hf_key.strip()
-        
-        
-        if deepseek_key and not deepseek_key.startswith("sk-"):
-            QMessageBox.warning(self, "Error", "La API Key de DeepSeek debe comenzar con 'sk-'")
-            return
-        
-        if hf_key and not hf_key.startswith("hf_"):
-            QMessageBox.warning(self, "Error", "La API Key de Hugging Face debe comenzar con 'hf_'")
-            return
-        
-        
-        env_path = project_root / '.env'
-        env_content = []
-        
-        if env_path.exists():
-            with open(env_path, 'r') as f:
-                env_content = f.readlines()
-        
-       
-        keys_to_update = {
-            'DEEPSEEK_API_KEY': deepseek_key,
-            'HUGGINGFACE_API_KEY': hf_key
-        }
-        
-        new_env_content = []
-        keys_updated = set()
-        
-        for line in env_content:
-            line_stripped = line.strip()
-            if '=' in line_stripped:
-                key = line_stripped.split('=')[0].strip()
-                if key in keys_to_update:
-                    new_env_content.append(f"{key}={keys_to_update[key]}\n")
-                    keys_updated.add(key)
-                    continue
-            new_env_content.append(line)
-        
-       
-        for key, value in keys_to_update.items():
-            if key not in keys_updated:
-                new_env_content.append(f"{key}={value}\n")
-        
-        with open(env_path, 'w') as f:
-            f.writelines(new_env_content)
-        
-
-        load_dotenv(env_path, override=True)
-        
-    
-        self.load_api_keys()
-        self.detect_available_providers()
-        
-        dialog.accept()
-        QMessageBox.information(self, "Éxito", "API Keys guardadas correctamente. Reinicia la aplicación para que los cambios surtan efecto completo.")
-
-    def load_api_keys(self):
-        """Carga las API keys de los diferentes proveedores"""
-        self.deepseek_key = os.getenv("DEEPSEEK_API_KEY")
-        self.huggingface_key = os.getenv("HUGGINGFACE_API_KEY")
-
-    def detect_available_providers(self):
-        """Detecta los proveedores de IA disponibles"""
-        self.available_providers = []
-        self.provider_combo.clear()
-        
-     
-        if self.deepseek_key and self.deepseek_key.startswith("sk-"):
-            self.available_providers.append(AIProvider.DEEPSEEK)
-            self.provider_combo.addItem("DeepSeek", AIProvider.DEEPSEEK)
-        
-        
-        if self.huggingface_key and self.huggingface_key.startswith("hf_"):
-            self.available_providers.append(AIProvider.STARCODER)
-            self.provider_combo.addItem("StarCoder (Hugging Face)", AIProvider.STARCODER)
-        
-        
-        if self.available_providers:
-            self.current_provider = self.available_providers[0]
-            self.provider_combo.setCurrentIndex(0)
-            self.add_message("Sistema", f"✅ Conectado a {self.provider_combo.currentText()}")
+    def save_edited_file(self, file_path, content, dialog):
+        """Guarda el archivo editado"""
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            self.add_success_message(f"✅ Archivo '{os.path.basename(file_path)}' guardado exitosamente")
+            dialog.accept()
             
-           
-            self.set_ui_enabled(True)
+            # Actualizar en el editor principal si está abierto
+            if hasattr(self.parent_window, 'open_files'):
+                for path, tab_data in self.parent_window.open_files.items():
+                    if path == file_path and tab_data['editor']:
+                        tab_data['editor'].setPlainText(content)
+                        tab_data['editor'].document().setModified(False)
+                        
+        except Exception as e:
+            self.add_error_message(f"❌ Error al guardar archivo: {str(e)}")
+
+    # ===== FUNCIONES DE EJECUCIÓN DE CÓDIGO =====
+    def quick_delete_file(self):
+        """Elimina un archivo rápidamente"""
+        files = []
+        for root, dirs, filenames in os.walk(self.project_path):
+            for file in filenames:
+                files.append(os.path.join(root, file))
+        if not files:
+            self.add_warning_message("No hay archivos en el proyecto")
+            return
+        file_path, ok = QInputDialog.getItem(self, "Eliminar Archivo", "Selecciona un archivo:", files, 0, False)
+        if ok and file_path:
+            try:
+                os.remove(file_path)
+                self.add_success_message(f"✅ Archivo '{os.path.basename(file_path)}' eliminado exitosamente")
+            except Exception as e:
+                self.add_error_message(f"❌ Error al eliminar archivo: {str(e)}")
+    def run_project(self):
+        """Ejecuta el proyecto actual"""
+        project_language = getattr(self.parent_window, 'project_language', 'Java').lower()
+        
+        try:
+            if project_language == 'java':
+                self.run_java_project()
+            elif project_language == 'kotlin':
+                self.run_kotlin_project()
+            elif project_language == 'python':
+                self.run_python_project()
+            else:
+                self.add_warning_message(f"Ejecución para {project_language} no implementada")
+                
+        except Exception as e:
+            self.add_error_message(f"❌ Error al ejecutar proyecto: {str(e)}")
+
+    def run_java_project(self):
+        """Ejecuta proyecto Java"""
+        # Buscar archivo principal
+        main_files = []
+        for root, dirs, files in os.walk(self.project_path):
+            for file in files:
+                if file.endswith('.java'):
+                    with open(os.path.join(root, file), 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        if 'public static void main' in content:
+                            main_files.append(os.path.join(root, file))
+        
+        if not main_files:
+            self.add_error_message("❌ No se encontró archivo principal con main()")
+            return
+        
+        if len(main_files) > 1:
+            file_path, ok = QInputDialog.getItem(self, "Seleccionar Archivo Principal", 
+                                               "Múltiples archivos main encontrados:", main_files, 0, False)
+            if not ok:
+                return
         else:
-            self.add_message("Sistema", "⚠️ No hay proveedores de IA configurados")
-            self.add_message("Sistema", "Haz clic en 'Configurar API' para agregar tus API keys")
+            file_path = main_files[0]
+        
+        # Compilar y ejecutar
+        try:
+            self.add_system_message("🔨 Compilando proyecto Java...")
             
-       
-            self.set_ui_enabled(False)
-            self.config_btn.setEnabled(True)
+            # Compilar
+            compile_process = subprocess.run(['javac', file_path], 
+                                          cwd=os.path.dirname(file_path),
+                                          capture_output=True, text=True)
+            
+            if compile_process.returncode != 0:
+                self.add_error_message(f"❌ Error de compilación:\n```\n{compile_process.stderr}\n```")
+                return
+            
+            # Ejecutar
+            class_name = os.path.basename(file_path).replace('.java', '')
+            self.add_system_message("▶️ Ejecutando...")
+            
+            run_process = subprocess.run(['java', class_name], 
+                                      cwd=os.path.dirname(file_path),
+                                      capture_output=True, text=True)
+            
+            output = f"**Salida:**\n```\n{run_process.stdout}\n```"
+            if run_process.stderr:
+                output += f"\n**Errores:**\n```\n{run_process.stderr}\n```"
+            
+            self.add_system_message(output)
+            
+        except Exception as e:
+            self.add_error_message(f"❌ Error en ejecución: {str(e)}")
 
-    def change_ai_provider(self, provider_text):
-        """Cambia el proveedor de IA seleccionado"""
-        provider_data = self.provider_combo.currentData()
-        if provider_data:
-            self.current_provider = provider_data
-            self.add_message("Sistema", f"🔁 Cambiado a {provider_text}")
+    def run_python_project(self):
+        """Ejecuta proyecto Python"""
+        main_files = []
+        for root, dirs, files in os.walk(self.project_path):
+            for file in files:
+                if file.endswith('.py') and not file.startswith('__'):
+                    main_files.append(os.path.join(root, file))
+        
+        if not main_files:
+            self.add_error_message("❌ No se encontraron archivos .py")
+            return
+        
+        if len(main_files) > 1:
+            file_path, ok = QInputDialog.getItem(self, "Seleccionar Archivo", 
+                                               "Selecciona archivo Python:", main_files, 0, False)
+            if not ok:
+                return
+        else:
+            file_path = main_files[0]
+        
+        try:
+            self.add_system_message(f"▶️ Ejecutando {os.path.basename(file_path)}...")
+            
+            process = subprocess.run(['python', file_path], 
+                                  cwd=self.project_path,
+                                  capture_output=True, text=True)
+            
+            output = f"**Salida:**\n```\n{process.stdout}\n```"
+            if process.stderr:
+                output += f"\n**Errores:**\n```\n{process.stderr}\n```"
+            
+            self.add_system_message(output)
+            
+        except Exception as e:
+            self.add_error_message(f"❌ Error en ejecución: {str(e)}")
+    def run_kotlin_project(self):
+        """Ejecuta proyecto Kotlin (pendiente de implementar)"""
+        self.add_warning_message("Ejecución de proyectos Kotlin no implementada aún.")
 
-    def set_ui_enabled(self, enabled):
-        """Habilita/deshabilita la UI durante las llamadas a API"""
-        self.send_button.setEnabled(enabled)
-        self.user_input.setEnabled(enabled)
-        self.gen_xml_btn.setEnabled(enabled)
-        self.gen_java_btn.setEnabled(enabled)
-        self.export_btn.setEnabled(enabled)
-        self.provider_combo.setEnabled(enabled and len(self.available_providers) > 1)
-        self.config_btn.setEnabled(enabled)
+    def compile_project(self):
+        """Compila el proyecto actual (solo Java/Kotlin)"""
+        project_language = getattr(self.parent_window, 'project_language', 'Java').lower()
+        try:
+            if project_language == 'java':
+                self.add_system_message("🔨 Compilando proyecto Java...")
+                # Implementa compilación aquí si lo deseas
+            elif project_language == 'kotlin':
+                self.add_system_message("🔨 Compilando proyecto Kotlin...")
+                # Implementa compilación aquí si lo deseas
+            else:
+                self.add_warning_message(f"Compilación para {project_language} no implementada")
+        except Exception as e:
+            self.add_error_message(f"❌ Error al compilar proyecto: {str(e)}")
+
+    def debug_project(self):
+        """Debug del proyecto (pendiente de implementar)"""
+        self.add_warning_message("Funcionalidad de debug no implementada aún.")
+
+    def check_syntax(self):
+        """Analiza la sintaxis del proyecto (pendiente de implementar)"""
+        self.add_warning_message("Análisis de sintaxis no implementado aún.")
+
+    def run_code_snippet(self):
+        """Ejecuta un snippet de código (pendiente de implementar)"""
+        self.add_warning_message("Ejecución de snippets no implementada aún.")
+
+    def project_stats(self):
+        """Muestra estadísticas del proyecto"""
+        self.analyze_project()
+
+    def show_dependencies(self):
+        """Muestra dependencias del proyecto (pendiente de implementar)"""
+        self.add_warning_message("Visualización de dependencias no implementada aún.")
+
+    def refactor_project(self):
+        """Refactoriza el proyecto (pendiente de implementar)"""
+        self.add_warning_message("Refactorización no implementada aún.")
+
+    def export_project_quick(self):
+        """Exporta el proyecto rápidamente"""
+        if hasattr(self.parent_window, "export_project"):
+            self.parent_window.export_project()
+        else:
+            self.add_warning_message("Exportación rápida no disponible.")
+    # ===== FUNCIONES DE ANÁLISIS =====
+    
+    def analyze_project(self):
+        """Analiza el proyecto y muestra estadísticas"""
+        try:
+            stats = {
+                'total_files': 0,
+                'total_size': 0,
+                'by_extension': {},
+                'largest_files': []
+            }
+            
+            for root, dirs, files in os.walk(self.project_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    stats['total_files'] += 1
+                    
+                    # Tamaño
+                    size = os.path.getsize(file_path)
+                    stats['total_size'] += size
+                    
+                    # Extensión
+                    ext = os.path.splitext(file)[1].lower() or 'sin extensión'
+                    stats['by_extension'][ext] = stats['by_extension'].get(ext, 0) + 1
+                    
+                    # Archivos más grandes
+                    stats['largest_files'].append((file_path, size))
+            
+            # Ordenar archivos por tamaño
+            stats['largest_files'].sort(key=lambda x: x[1], reverse=True)
+            
+            # Generar reporte
+            report = f"**📊 Análisis del Proyecto**\n\n"
+            report += f"• **Archivos totales:** {stats['total_files']}\n"
+            report += f"• **Tamaño total:** {stats['total_size'] / 1024:.2f} KB\n\n"
+            
+            report += "**📁 Por extensión:**\n"
+            for ext, count in sorted(stats['by_extension'].items(), key=lambda x: x[1], reverse=True):
+                report += f"• `{ext}`: {count} archivos\n"
+            
+            report += f"\n**🏆 Archivos más grandes:**\n"
+            for file_path, size in stats['largest_files'][:5]:
+                name = os.path.basename(file_path)
+                report += f"• `{name}`: {size / 1024:.2f} KB\n"
+            
+            self.add_system_message(report)
+            
+        except Exception as e:
+            self.add_error_message(f"❌ Error en análisis: {str(e)}")
+
+    # ===== FUNCIONES DE BÚSQUEDA =====
+    
+    def search_in_code(self):
+        """Busca texto en todos los archivos del proyecto"""
+        search_text, ok = QInputDialog.getText(self, "Buscar en Código", "Texto a buscar:")
+        if ok and search_text:
+            try:
+                results = []
+                for root, dirs, files in os.walk(self.project_path):
+                    for file in files:
+                        if file.endswith(('.java', '.kt', '.py', '.xml', '.txt', '.md')):
+                            file_path = os.path.join(root, file)
+                            try:
+                                with open(file_path, 'r', encoding='utf-8') as f:
+                                    content = f.read()
+                                    if search_text in content:
+                                        # Contar ocurrencias
+                                        count = content.count(search_text)
+                                        results.append((file_path, count))
+                            except:
+                                continue
+                
+                if results:
+                    result_text = f"**🔍 Resultados para '{search_text}':**\n\n"
+                    for file_path, count in sorted(results, key=lambda x: x[1], reverse=True):
+                        rel_path = os.path.relpath(file_path, self.project_path)
+                        result_text += f"• `{rel_path}`: {count} ocurrencias\n"
+                    
+                    self.add_system_message(result_text)
+                else:
+                    self.add_warning_message(f"❌ No se encontró '{search_text}' en el proyecto")
+                    
+            except Exception as e:
+                self.add_error_message(f"❌ Error en búsqueda: {str(e)}")
+    def search_in_code_specific(self, search_text):
+        """Busca texto específico en todos los archivos del proyecto"""
+        try:
+            results = []
+            for root, dirs, files in os.walk(self.project_path):
+                for file in files:
+                    if file.endswith(('.java', '.kt', '.py', '.xml', '.txt', '.md')):
+                        file_path = os.path.join(root, file)
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                                if search_text in content:
+                                    count = content.count(search_text)
+                                    results.append((file_path, count))
+                        except:
+                            continue
+            if results:
+                result_text = f"**🔍 Resultados para '{search_text}':**\n\n"
+                for file_path, count in sorted(results, key=lambda x: x[1], reverse=True):
+                    rel_path = os.path.relpath(file_path, self.project_path)
+                    result_text += f"• `{rel_path}`: {count} ocurrencias\n"
+                self.add_system_message(result_text)
+            else:
+                self.add_warning_message(f"❌ No se encontró '{search_text}' en el proyecto")
+        except Exception as e:
+            self.add_error_message(f"❌ Error en búsqueda: {str(e)}")
+
+    # ===== FUNCIONES MEJORADAS DE MENSAJES =====
+    
+    def add_system_message(self, message):
+        """Añade un mensaje del sistema formateado"""
+        self._add_formatted_message("🤖 **Sistema**", message, "#2d2d30")
+
+    def add_success_message(self, message):
+        """Añade un mensaje de éxito"""
+        self._add_formatted_message("✅ **Éxito**", message, "#4CAF50")
+
+    def add_warning_message(self, message):
+        """Añade un mensaje de advertencia"""
+        self._add_formatted_message("⚠️ **Advertencia**", message, "#FF9800")
+
+    def add_error_message(self, message):
+        """Añade un mensaje de error"""
+        self._add_formatted_message("❌ **Error**", message, "#F44336")
+
+    def add_code_message(self, message, language=""):
+        """Añade un mensaje con código formateado"""
+        cursor = self.chat_history.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        
+        # Encabezado del mensaje
+        timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
+        cursor.insertHtml(f'''
+            <div style="background-color: #1e1e1e; padding: 10px; margin: 5px; border-radius: 8px; border-left: 4px solid #569CD6;">
+                <div style="color: #569CD6; font-weight: bold;">💻 **Código** <span style="color: #666; font-size: 0.8em;">[{timestamp}]</span></div>
+        ''')
+        
+        # Código con botón de copiar
+        code_id = f"code_{hash(message) % 10000}"
+        cursor.insertHtml(f'''
+            <div style="position: relative;">
+                <pre style="background-color: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 5px; overflow-x: auto; margin: 10px 0; border: 1px solid #3e3e42;">
+{message}
+                </pre>
+                <button id="{code_id}" onclick="copyCode('{code_id}')" style="position: absolute; top: 5px; right: 5px; background: #569CD6; color: white; border: none; border-radius: 3px; padding: 2px 8px; font-size: 10px; cursor: pointer;">
+                    📋 Copiar
+                </button>
+            </div>
+        ''')
+        
+        cursor.insertHtml('</div><br>')
+        self.chat_history.ensureCursorVisible()
+
+    def _add_formatted_message(self, sender, message, color):
+        """Añade un mensaje formateado"""
+        cursor = self.chat_history.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        
+        timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
+        
+        # Detectar si el mensaje contiene código
+        if '```' in message:
+            parts = message.split('```')
+            formatted_message = ""
+            for i, part in enumerate(parts):
+                if i % 2 == 1:  # Parte de código
+                    formatted_message += f'<pre style="background-color: #1e1e1e; color: #d4d4d4; padding: 10px; border-radius: 5px; overflow-x: auto; margin: 5px 0;">{part}</pre>'
+                else:
+                    formatted_message += part.replace('\n', '<br>')
+            message = formatted_message
+        else:
+            message = message.replace('\n', '<br>')
+        
+        cursor.insertHtml(f'''
+            <div style="background-color: {color}; padding: 10px; margin: 5px; border-radius: 8px; border-left: 4px solid {color};">
+                <div style="color: white; font-weight: bold;">{sender} <span style="color: #ccc; font-size: 0.8em;">[{timestamp}]</span></div>
+                <div style="color: white; margin-top: 5px;">{message}</div>
+            </div>
+        ''')
+        
+        cursor.insertHtml('<br>')
+        self.chat_history.ensureCursorVisible()
+
 
     def send_message(self):
+        """Envía un mensaje con procesamiento de comandos especiales"""
         user_text = self.user_input.text().strip()
         if not user_text:
             return
             
-        self.add_message("Tú", user_text)
+        self._add_formatted_message("👤 **Tú**", user_text, "#1976D2")  # <-- CORREGIDO
         self.user_input.clear()
         
-      
-        if not self.available_providers:
-            self.add_message("Sistema", "❌ No hay proveedores de IA configurados")
-            self.add_message("Sistema", "Por favor, configura tus API keys primero")
-            self.use_local_response(user_text)
-            return
+        # Procesar comandos especiales
+        if user_text.startswith('/'):
+            self.process_command(user_text)
+        else:
+            # Procesamiento normal con IA
+            self.process_with_ai(user_text)
+    # ...existing code...
+
+    def process_command(self, command):
+        """Procesa comandos especiales"""
+        cmd = command.lower().strip()
         
-      
-        self.set_ui_enabled(False)
-        self.add_message("Asistente IA", "Pensando...")
-        
-        try:
-            if self.current_provider == AIProvider.DEEPSEEK:
-                self.use_deepseek(user_text)
-            elif self.current_provider == AIProvider.STARCODER:
-                self.use_starcoder(user_text)
+        if cmd == '/archivos' or cmd == '/files':
+            self.list_project_files()
+        elif cmd == '/estadisticas' or cmd == '/stats':
+            self.analyze_project()
+        elif cmd == '/ejecutar' or cmd == '/run':
+            self.run_project()
+        elif cmd == '/buscar' or cmd.startswith('/buscar '):
+            search_text = command[7:].strip()
+            if search_text:
+                self.search_in_code_specific(search_text)
             else:
-                self.use_local_response(user_text)
+                self.search_in_code()
+        elif cmd == '/help' or cmd == '/ayuda':
+            self.show_help()
+        elif cmd.startswith('/crear_carpeta '):
+            folder_name = command[15:].strip()
+            self.create_specific_folder(folder_name)
+        elif cmd.startswith('/crear_archivo '):
+            file_path = command[15:].strip()
+            self.create_specific_file(file_path)
+
+        else:
+            self.add_warning_message(f"Comando no reconocido: {command}")
+    def create_specific_folder(self, folder_name):
+        """Crea una carpeta específica"""
+        try:
+            folder_path = os.path.join(self.project_path, folder_name)
+            os.makedirs(folder_path, exist_ok=True)
+            self.add_success_message(f"✅ Carpeta '{folder_name}' creada/verificada")
+            if hasattr(self.parent_window, 'update_file_explorer'):
+                self.parent_window.update_file_explorer()
         except Exception as e:
-            self.handle_ai_error(f"Error al iniciar la consulta: {str(e)}")
+            self.add_error_message(f"❌ Error: {str(e)}")
 
-    def use_deepseek(self, user_message):
-        """Usa DeepSeek para generar la respuesta"""
-       
-        if self.current_worker and self.current_worker.isRunning():
-            self.current_worker.quit()
-            self.current_worker.wait()
-        
-        self.current_worker = DeepSeekWorker(
-            self.deepseek_key, 
-            user_message, 
-            self.conversation_history
-        )
-        self.current_worker.response_received.connect(self.handle_ai_response)
-        self.current_worker.error_occurred.connect(self.handle_ai_error)
-        self.current_worker.finished.connect(self.on_worker_finished)
-        self.current_worker.start()
-
-    def use_starcoder(self, user_message):
-        """Usa StarCoder para generar la respuesta"""
-        
-        if self.current_worker and self.current_worker.isRunning():
-            self.current_worker.quit()
-            self.current_worker.wait()
-        
-        enhanced_prompt = self.enhance_prompt_for_starcoder(user_message)
-        
-        self.current_worker = StarCoderWorker(
-            self.huggingface_key,
-            enhanced_prompt,
-            "bigcode/starcoder2-15b"
-        )
-        self.current_worker.response_received.connect(self.handle_ai_response)
-        self.current_worker.error_occurred.connect(self.handle_ai_error)
-        self.current_worker.finished.connect(self.on_worker_finished)
-        self.current_worker.start()
-
-    def on_worker_finished(self):
-        """Se llama cuando el worker termina su ejecución"""
-        self.current_worker = None
-
-    def enhance_prompt_for_starcoder(self, user_message):
-        """Mejora el prompt para StarCoder con contexto específico"""
-        design_context = self.get_design_context()
-        
-        enhanced_prompt = f"""
-Eres un asistente especializado en desarrollo Android. Responde en español.
-
-Contexto del diseño actual:
-{design_context}
-
-Pregunta del usuario: {user_message}
-
-Por favor, proporciona una respuesta útil que incluya:
-1. Explicación clara en español
-2. Código relevante si es aplicable
-3. Ejemplos prácticos
-
-Respuesta:"""
-        
-        return enhanced_prompt
-
-    def get_design_context(self):
-        """Obtiene información sobre los elementos de diseño actuales"""
-        if not hasattr(self, 'code_generator') or not self.code_generator.elements:
-            return "No hay elementos de diseño actualmente."
-        
-        context = "Elementos actuales en el diseño:\n"
-        for i, element in enumerate(self.code_generator.elements, 1):
-            context += f"{i}. {element.androidWidgetType} "
-            context += f"({element.x}px, {element.y}px) "
-            context += f"{element.width}x{element.height}px\n"
+    def create_specific_file(self, file_path):
+        """Crea un archivo específico con contenido básico"""
+        try:
+            full_path = os.path.join(self.project_path, file_path)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
             
-            if element.properties.get("text"):
-                context += f"   Texto: {element.properties['text']}\n"
-            if element.properties.get("backgroundColor") != "#FFFFFF":
-                context += f"   Color fondo: {element.properties['backgroundColor']}\n"
-        
-        return context
+            # Contenido según extensión
+            if file_path.endswith('.py'):
+                content = '# Archivo Python\nprint("Hola Mundo")'
+            elif file_path.endswith('.java'):
+                content = '// Archivo Java\npublic class Test {\n    public static void main(String[] args) {\n        System.out.println("Hola Mundo");\n    }\n}'
+            elif file_path.endswith('.kt'):
+                content = '// Archivo Kotlin\nfun main() {\n    println("Hola Mundo")\n}'
+            else:
+                content = f'// Archivo {file_path}'
+                
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+                
+            self.add_success_message(f"✅ Archivo '{file_path}' creado")
+            
+        except Exception as e:
+            self.add_error_message(f"❌ Error: {str(e)}")
+    def show_help(self):
+        """Muestra ayuda de comandos"""
+        help_text = """
+        **🛠️ Comandos Disponibles:**
 
-    def handle_ai_response(self, response):
-        """Maneja la respuesta de la IA"""
-        cleaned_response = self.clean_ai_response(response)
-        self.add_message("Asistente IA", cleaned_response)
-        
-        self.conversation_history.append({"role": "assistant", "content": cleaned_response})
-        self.set_ui_enabled(True)
+        **📁 Archivos:**
+        • `/archivos` - Lista la estructura del proyecto
+        • `/estadisticas` - Muestra estadísticas del proyecto
+        • `/buscar [texto]` - Busca texto en los archivos
 
-    def clean_ai_response(self, response):
-        """Limpia y formatea la respuesta de la IA"""
-        if "```" in response:
-            return response
-        
-        lines = response.split('\n')
-        cleaned_lines = []
-        skip = False
-        
-        for line in lines:
-            if "Eres un asistente" in line or "Contexto del diseño" in line:
-                skip = True
-            elif "Pregunta del usuario:" in line:
-                skip = False
-            elif not skip:
-                cleaned_lines.append(line)
-        
-        return '\n'.join(cleaned_lines).strip()
+        **⚡ Ejecución:**
+        • `/ejecutar` - Ejecuta el proyecto actual
+        • `/compilar` - Compila el proyecto
 
-    def add_message(self, sender, message):
-        cursor = self.chat_history.textCursor()
-        cursor.movePosition(QTextCursor.End)
+        **🔧 Utilidades:**
+        • `/help` - Muestra esta ayuda
+
+        **💬 IA:**
+        • Escribe normalmente para conversar con la IA
+        • Pide crear, modificar o analizar archivos
+                """
+        self.add_system_message(help_text)
+
+    # Mantener las funciones existentes de IA pero mejorarlas
+    def process_with_ai(self, user_text):
+        """Procesa el mensaje con IA"""
+        # Aquí integrarías con DeepSeek/StarCoder como antes
+        # Pero ahora con más contexto del proyecto
         
-        if sender == "Tú":
-            cursor.insertHtml(f'<div style="background-color: #e3f2fd; padding: 8px; margin: 5px; border-radius: 8px; border: 1px solid #bbdefb;">'
-                             f'<b>{sender}:</b> {message}</div>')
+        # Por ahora, respuesta local mejorada
+        self.enhanced_local_response(user_text)
+    def process_advanced_command(self, command):
+        """Procesa comandos avanzados de creación de archivos y carpetas"""
+        lower_cmd = command.lower()
+        
+        # Detectar patrones de creación múltiple
+        if any(word in lower_cmd for word in ['crea estos', 'crear varios', 'multiple archivos']):
+            self.handle_multiple_file_creation(command)
+        elif 'crear carpeta' in lower_cmd or 'crea la carpeta' in lower_cmd:
+            self.handle_folder_creation(command)
         else:
-            if "```" in message:
-                parts = message.split("```")
-                formatted_message = ""
-                for i, part in enumerate(parts):
-                    if i % 2 == 1:
-                        formatted_message += f'<pre style="background-color: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto;">{part}</pre>'
+            self.enhanced_local_response(command)
+
+    def handle_multiple_file_creation(self, command):
+        """Maneja la creación de múltiples archivos"""
+        try:
+            # Extraer nombres y tipos de archivo del comando
+            if 'prueba_process' in command:
+                base_name = 'prueba_process'
+                extensions = ['.py', '.java', '.kt']
+                folder_name = 'Logica'
+                
+                # Crear carpeta si no existe
+                folder_path = os.path.join(self.project_path, folder_name)
+                os.makedirs(folder_path, exist_ok=True)
+                
+                # Crear archivos
+                created_files = []
+                for ext in extensions:
+                    file_path = os.path.join(folder_path, f"{base_name}{ext}")
+                    
+                    # Contenido básico según extensión
+                    if ext == '.py':
+                        content = f'# Archivo {base_name}{ext}\nprint("Hola desde Python")'
+                    elif ext == '.java':
+                        content = f'// Archivo {base_name}{ext}\npublic class {base_name} {{\n    public static void main(String[] args) {{\n        System.out.println("Hola desde Java");\n    }}\n}}'
+                    elif ext == '.kt':
+                        content = f'// Archivo {base_name}{ext}\nclass {base_name} {{\n    fun main() {{\n        println("Hola desde Kotlin")\n    }}\n}}'
                     else:
-                        formatted_message += part
-                message = formatted_message
+                        content = f'// Archivo {base_name}{ext}'
+                    
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                    created_files.append(f"{base_name}{ext}")
+                
+                self.add_success_message(f"✅ Carpeta '{folder_name}' y archivos creados exitosamente:")
+                for file in created_files:
+                    self.add_system_message(f"• 📄 {file}")
+                    
+                # Actualizar explorador
+                if hasattr(self.parent_window, 'update_file_explorer'):
+                    self.parent_window.update_file_explorer()
+                    
+            else:
+                self.add_warning_message("No se pudo procesar el comando de creación múltiple")
+                
+        except Exception as e:
+            self.add_error_message(f"❌ Error al crear archivos múltiples: {str(e)}")
+
+    def handle_folder_creation(self, command):
+        """Maneja la creación de carpetas específicas"""
+        try:
+            # Extraer nombre de carpeta del comando
+            if 'logica' in command.lower():
+                folder_name = 'Logica'
+                folder_path = os.path.join(self.project_path, folder_name)
+                
+                os.makedirs(folder_path, exist_ok=True)
+                self.add_success_message(f"✅ Carpeta '{folder_name}' creada/verificada exitosamente")
+                
+                # Actualizar explorador
+                if hasattr(self.parent_window, 'update_file_explorer'):
+                    self.parent_window.update_file_explorer()
+                    
+        except Exception as e:
+            self.add_error_message(f"❌ Error al crear carpeta: {str(e)}")
+    def enhanced_local_response(self, user_text):
+        """Respuesta local mejorada con conocimiento del proyecto"""
+        lower_msg = user_text.lower()
+        
+        # Comandos avanzados primero
+        if any(word in lower_msg for word in ['crea estos', 'crear varios', 'multiple archivos', 'crear carpeta']):
+            self.process_advanced_command(user_text)
+        # Detectar intenciones relacionadas con archivos (mantener existentes)
+        elif any(word in lower_msg for word in ['crear archivo', 'nuevo archivo', 'new file']):
+            self.quick_create_file()
+        elif any(word in lower_msg for word in ['listar archivos', 'ver archivos', 'ls']):
+            self.list_project_files()
+        # ... resto de comandos existentes
+
+    def generate_enhanced_response(self, user_text):
+        """Genera una respuesta mejorada basada en el contexto del proyecto"""
+        # Aquí podrías integrar más inteligencia contextual
+        return f"He procesado tu solicitud: '{user_text}'. Puedo ayudarte con gestión de archivos, ejecución de código, análisis de proyectos y más. Usa los botones de acción rápida o escribe comandos como '/help'."
+
+    def add_ai_response(self, response):
+        """Añade respuesta de IA formateada"""
+        self._add_formatted_message("🤖 **IA**", response, "#388E3C")
+
+    # Añadir esta función auxiliar para copiar código
+    def add_copy_functionality(chat_history):
+        """Añade funcionalidad JavaScript para copiar código"""
+        js_code = """
+        <script>
+        function copyCode(elementId) {
+            var codeElement = document.getElementById(elementId).previousElementSibling;
+            var textArea = document.createElement("textarea");
+            textArea.value = codeElement.textContent;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textArea);
             
-            cursor.insertHtml(f'<div style="background-color: #f5f5f5; padding: 8px; margin: 5px; border-radius: 8px; border: 1px solid #e0e0e0;">'
-                             f'<b>{sender}:</b> {message}</div>')
-        
-        cursor.insertHtml("<br>")
-        self.chat_history.ensureCursorVisible()
+            var button = document.getElementById(elementId);
+            button.textContent = "✅ Copiado";
+            setTimeout(function() {
+                button.textContent = "📋 Copiar";
+            }, 2000);
+        }
+        </script>
+        """
+        # Esto sería más efectivo en una aplicación web, pero para Qt necesitamos un enfoque diferente
+        pass
+    def load_api_keys(self):
+        """Carga las API keys de los proveedores de IA"""
+        self.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY", "")
+        self.starcoder_api_key = os.getenv("HUGGINGFACE_API_KEY", "")
 
-    def use_local_response(self, user_message):
-        """Usar respuestas locales cuando no hay API key"""
-        lower_msg = user_message.lower()
-        
-        if any(word in lower_msg for word in ["java", "android", "código"]):
-            response = "Puedo ayudarte con código Java/Android. Para mejores resultados, configura tus API Keys."
-        elif any(word in lower_msg for word in ["rectángulo", "cuadrado", "view"]):
-            response = "Elemento rectangular detectado. Configura tus API Keys para generar código XML automático."
-        elif any(word in lower_msg for word in ["texto", "textview"]):
-            response = "Elemento de texto. Con las API Keys podré generar TextView personalizado."
-        elif any(word in lower_msg for word in ["botón", "button"]):
-            response = "Botón detectado. Las API Keys me permitirán generar onClick listeners."
-        elif any(word in lower_msg for word in ["color", "colores"]):
-            response = "Puedo ayudar con colores Android (#AARRGGBB). Ejemplo: #FF6200EE para púrpura."
-        else:
-            response = "Estoy aquí para ayudarte con desarrollo Android. Para respuestas más avanzadas, necesitas configurar API Keys."
-        
-        QTimer.singleShot(1000, lambda: self.add_message("Asistente IA", response))
-        self.set_ui_enabled(True)
-
-    def handle_ai_error(self, error_msg):
-        """Maneja errores de la API"""
-        error_text = f"Error al conectar con la IA: {error_msg}"
-        self.add_message("Sistema", error_text)
-        self.set_ui_enabled(True)
+    def detect_available_providers(self):
+        """Detecta proveedores de IA disponibles y actualiza el combo"""
+        self.available_providers = AIProvider.get_available_providers()
+        self.provider_combo.clear()
+        for provider in self.available_providers:
+            self.provider_combo.addItem(provider)
+        if self.available_providers:
+            self.current_provider = self.available_providers[0]
+            self.provider_combo.setCurrentText(self.current_provider)
 
     def generate_xml(self):
-        xml_code = self.code_generator.generateLayoutXML()
-        self.add_message("Asistente IA", "He generado el código XML para tu layout:\n\n```xml\n" + xml_code + "\n```")
-    
+        """Genera código XML del proyecto (pendiente de implementar)"""
+        self.add_system_message("Funcionalidad de generación XML en desarrollo.")
+
     def generate_java(self):
-        java_code = self.code_generator.generateActivityJava()
-        self.add_message("Asistente IA", "He generado el código Java para tu Activity:\n\n```java\n" + java_code + "\n```")
-    
+        """Genera código Java del proyecto (pendiente de implementar)"""
+        self.add_system_message("Funcionalidad de generación Java en desarrollo.")
+
     def export_project(self):
-        directory = QFileDialog.getExistingDirectory(self, "Seleccionar directorio para exportar")
-        if directory:
-            success = self.code_generator.exportProject(directory)
-            if success:
-                self.add_message("Asistente IA", f"¡Proyecto exportado exitosamente a {directory}! Ya puedes abrirlo en Android Studio.")
-            else:
-                self.add_message("Asistente IA", "Hubo un error al exportar el proyecto. Por favor, intenta nuevamente.")
-
-    def closeEvent(self, event):
-        """Maneja el cierre del panel para detener los workers"""
-        if self.current_worker and self.current_worker.isRunning():
-            self.current_worker.quit()
-            self.current_worker.wait()
-        super().closeEvent(event)
-
+        """Exporta el proyecto (pendiente de implementar)"""
+        self.add_system_message("Funcionalidad de exportación en desarrollo.")
 class AIResponseEvent(QEvent):
     """Evento personalizado para respuestas de IA"""
     EVENT_TYPE = QEvent.Type(QEvent.registerEventType())
@@ -2051,41 +2468,36 @@ class AIResponseEvent(QEvent):
         self.response = response
         self.is_error = is_error
 
-# Crear un delegate personalizado para los iconos
 class FileIconDelegate(QStyledItemDelegate):
     """Delegate personalizado para mostrar íconos en el explorador"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self.icon_map = {
-            # Lenguajes de programación
+
             '.java': '⚙️', '.kt': '⚙️', '.dart': '🎯', '.py': '🐍',
             '.js': '📜', '.ts': '📜', '.jsx': '⚛️', '.tsx': '⚛️',
             '.cpp': '🔧', '.c': '🔧', '.h': '🔧', '.cs': '🔷',
             '.php': '🐘', '.rb': '💎', '.go': '🐹', '.rs': '🦀',
             '.swift': '🐦', '.m': '🍎', '.mm': '🍎',
             
-            # Web
+   
             '.html': '🌐', '.htm': '🌐', '.xml': '📐', '.css': '🎨',
             '.scss': '🎨', '.sass': '🎨', '.less': '🎨',
             
-            # Datos
+
             '.json': '🔷', '.yaml': '🔷', '.yml': '🔷', '.csv': '📊',
             '.sql': '🗃️', '.db': '🗃️', '.sqlite': '🗃️',
-            
-            # Documentos
+  
             '.md': '📝', '.txt': '📄', '.pdf': '📕', '.doc': '📘',
             '.docx': '📘', '.xls': '📗', '.xlsx': '📗', '.ppt': '📙',
             
-            # Imágenes
             '.png': '🖼️', '.jpg': '🖼️', '.jpeg': '🖼️', '.gif': '🖼️',
             '.svg': '🖼️', '.ico': '🖼️', '.bmp': '🖼️',
-            
-            # Archivos de proyecto
+
             '.gradle': '📦', '.kts': '📦', '.pro': '📦', '.cmake': '📦',
             '.gitignore': '🔒', '.gitattributes': '🔒',
-            
-            # Ejecutables y librerías
+
             '.exe': '⚡', '.dll': '📚', '.so': '📚', '.a': '📚',
             '.jar': '☕', '.war': '☕', '.apk': '📱',
         }
@@ -2098,13 +2510,12 @@ class FileIconDelegate(QStyledItemDelegate):
             file_name = index.model().fileName(index)
             _, ext = os.path.splitext(file_path)
             
-            # Determinar si es archivo o carpeta
+
             if os.path.isdir(file_path):
-                icon_text = '📁'  # Carpeta
+                icon_text = '📁' 
             else:
-                icon_text = self.icon_map.get(ext.lower(), '📄')  # Archivo
-            
-            # Añadir ícono al texto
+                icon_text = self.icon_map.get(ext.lower(), '📄')  
+
             option.text = f"{icon_text} {file_name}"
 class IllustratorWindow(QMainWindow):
     closed = Signal()
@@ -2150,7 +2561,6 @@ class IllustratorWindow(QMainWindow):
         self.setup_enhanced_docks()
 
         self.create_menu_bar()
-        # Configurar características específicas del lenguaje
         self.setup_language_specific_features()
         self.setup_context_menu()
 
@@ -2158,8 +2568,7 @@ class IllustratorWindow(QMainWindow):
         """Configura el menú contextual para el explorador de archivos"""
         self.file_tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_tree.customContextMenuRequested.connect(self.show_file_explorer_context_menu)
-        
-        # También permitir arrastrar y soltar
+
         self.file_tree.setDragEnabled(True)
         self.file_tree.setAcceptDrops(True)
         self.file_tree.setDragDropMode(QTreeView.InternalMove)
@@ -2168,15 +2577,13 @@ class IllustratorWindow(QMainWindow):
         """Muestra el menú contextual en el explorador de archivos"""
         index = self.file_tree.indexAt(position)
         if not index.isValid():
-            # Click en área vacía - crear en raíz del proyecto
             current_path = self.project_path
         else:
             current_path = self.file_model.filePath(index)
-            # Si es archivo, usar directorio padre
+
             if os.path.isfile(current_path):
                 current_path = os.path.dirname(current_path)
-        
-        # Crear y mostrar menú contextual
+
         context_menu = FileExplorerContextMenu(self)
         context_menu.exec_(self.file_tree.viewport().mapToGlobal(position))
     
@@ -2184,14 +2591,12 @@ class IllustratorWindow(QMainWindow):
         """Crea un archivo basado en la selección del diálogo"""
         file_type = dialog.selected_type
         filename = dialog.selected_filename
-        
-        # Asegurar extensión correcta
+
         if not any(filename.endswith(ext) for ext in file_type.extensions):
             filename += file_type.extensions[0]
         
         file_path = os.path.join(base_path, filename)
-        
-        # Verificar si el archivo ya existe
+
         if os.path.exists(file_path):
             reply = QMessageBox.question(
                 self,
@@ -2204,14 +2609,10 @@ class IllustratorWindow(QMainWindow):
                 return
         
         try:
-            # Crear directorios padres si no existen
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            
-            # Escribir contenido del archivo
             with open(file_path, 'w', encoding='utf-8') as f:
                 content = file_type.template
-                
-                # Reemplazar placeholders
+
                 class_name = filename.replace(" ", "_").replace(".java", "").replace(".kt", "").replace(".dart", "")
                 content = content.replace("{class_name}", class_name)
                 content = content.replace("{interface_name}", class_name)
@@ -2219,16 +2620,12 @@ class IllustratorWindow(QMainWindow):
                 
                 f.write(content)
             
-            # Actualizar el explorador de archivos
             self.file_model.setRootPath(self.project_path)
             
-            # Abrir el archivo en una pestaña
             self.open_file_in_tab(file_path)
-            
-            # Mostrar mensaje de éxito
+
             self.statusBar().showMessage(f"✅ Archivo '{filename}' creado exitosamente", 3000)
-            
-            # Opcional: seleccionar el nuevo archivo en el explorador
+
             new_index = self.file_model.index(file_path)
             self.file_tree.setCurrentIndex(new_index)
             
@@ -2239,8 +2636,7 @@ class IllustratorWindow(QMainWindow):
         """Actualiza la vista del explorador de archivos"""
         self.file_model.setRootPath(self.project_path)
         self.file_tree.setRootIndex(self.file_model.index(self.project_path))
-    
-    # Añadir soporte para arrastrar y soltar
+
     def dragEnterEvent(self, event):
         """Maneja el evento de arrastrar hacia la ventana"""
         if event.mimeData().hasUrls():
@@ -2263,18 +2659,15 @@ class IllustratorWindow(QMainWindow):
         elif self.project_language.lower() == "flutter":
             self.setup_flutter_features()
         else:
-            # Configuración por defecto para Java si no se reconoce el lenguaje
             self.setup_java_features()
 
     def setup_enhanced_docks(self):
         """Configuración mejorada de docks - respetar visibilidad existente"""
-        
-        # Remover todos los docks existentes primero
+
         existing_docks = self.findChildren(QDockWidget)
         for dock in existing_docks:
             self.removeDockWidget(dock)
-        
-        # Añadir todos los docks respetando su visibilidad actual
+
         docks_to_add = [
             (Qt.LeftDockWidgetArea, self.tool_panel),
             (Qt.LeftDockWidgetArea, self.layers_panel),
@@ -2282,8 +2675,7 @@ class IllustratorWindow(QMainWindow):
             (Qt.RightDockWidgetArea, self.color_panel),
             (Qt.RightDockWidgetArea, self.ai_panel)
         ]
-        
-        # Añadir paneles adicionales si existen
+
         if hasattr(self, 'character_panel') and self.character_panel:
             docks_to_add.append((Qt.BottomDockWidgetArea, self.character_panel))
         
@@ -2293,19 +2685,15 @@ class IllustratorWindow(QMainWindow):
         if hasattr(self, 'brushes_panel') and self.brushes_panel:
             docks_to_add.append((Qt.BottomDockWidgetArea, self.brushes_panel))
         
-        # Añadir todos los docks SIN cambiar su visibilidad
         for area, dock in docks_to_add:
             if dock:
                 self.addDockWidget(area, dock)
-                dock.setVisible(False)  # ← ESTA ES LA CLAVE: OCULTAR AL INICIAR
-                # NO forzar dock.setVisible(False) aquí
-        
-        # Agrupar algunos docks relacionados
+                dock.setVisible(False)  
+
         self.tabifyDockWidget(self.tool_panel, self.layers_panel)
         self.tabifyDockWidget(self.tool_panel, self.file_explorer_panel)
         self.tabifyDockWidget(self.color_panel, self.ai_panel)
-        
-        # Si existen paneles de texto, agruparlos también
+
         if hasattr(self, 'character_panel') and hasattr(self, 'paragraph_panel'):
             if self.character_panel and self.paragraph_panel:
                 self.tabifyDockWidget(self.character_panel, self.paragraph_panel)
@@ -2434,9 +2822,9 @@ class IllustratorWindow(QMainWindow):
             del self.open_windows[window_key]
 
     def setup_workspace(self):
-        self.current_preset = "Minimal"  # Usar preset minimal
+        self.current_preset = "Minimal"  
         self.tool_panel_position = "left"
-        self.visible_panels = []  # Lista vacía - el usuario agregará lo que necesite
+        self.visible_panels = []  
     def create_workspace_presets(self):
         self.workspace_presets = {
             "Default": WorkspacePreset("Default", "left", ["Tools", "Layers", "AI Assistant"]),
@@ -2472,7 +2860,6 @@ class IllustratorWindow(QMainWindow):
         
         self.main_layout.addWidget(self.tab_widget)
         
-        # Crear todos los paneles (pero iniciarán ocultos)
         self.create_tool_panel()
         self.create_layers_panel()
         self.create_color_panel()
@@ -2483,11 +2870,9 @@ class IllustratorWindow(QMainWindow):
         self.create_file_explorer_panel()
         
         self.create_menu_bar()
-        
-        # Configurar docks - TODOS OCULTOS
+
         self.setup_enhanced_docks()
-        
-         # HACER VISIBLES LOS PANELES DESPUÉS de configurar docks
+
         self.ai_panel.setVisible(True)
         self.file_explorer_panel.setVisible(True)
 
@@ -2495,9 +2880,6 @@ class IllustratorWindow(QMainWindow):
         self.explorer_panel_action.setChecked(True)
 
         self.statusBar().showMessage("Ready | Zoom: 100%")
-        
-        # NO aplicar ningún preset al inicio (todos cerrados)
-        # self.apply_workspace_preset(self.current_preset)
 
     def setup_java_features(self):
         self.setWindowTitle(f"Creators Studio - {self.project_name} [Java]")
@@ -2681,9 +3063,8 @@ class IllustratorWindow(QMainWindow):
         paragraph_widget.setLayout(QVBoxLayout())
         self.paragraph_panel.setWidget(paragraph_widget)
         
-        # Añadir el panel al área de docks (pero mantenerlo oculto inicialmente)
         self.addDockWidget(Qt.RightDockWidgetArea, self.paragraph_panel)
-        self.paragraph_panel.setVisible(False)  # Oculto por defecto
+        self.paragraph_panel.setVisible(False)  
     def create_ai_panel(self):
         self.ai_panel = EnhancedAIChatPanel(self.code_generator, self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.ai_panel)
@@ -2695,29 +3076,24 @@ class IllustratorWindow(QMainWindow):
         
         explorer_widget = QWidget()
         layout = QVBoxLayout(explorer_widget)
-        
-        # Barra de herramientas del explorador
+
         toolbar_layout = QHBoxLayout()
-        
-        # Botón para crear nuevo archivo
+
         new_file_btn = QPushButton("📄")
         new_file_btn.setToolTip("Nuevo Archivo (Ctrl+N)")
         new_file_btn.clicked.connect(self.show_new_file_dialog_at_root)
         new_file_btn.setFixedSize(30, 30)
-        
-        # Botón para crear nueva carpeta
+
         new_folder_btn = QPushButton("📁")
         new_folder_btn.setToolTip("Nueva Carpeta (Ctrl+Shift+N)")
         new_folder_btn.clicked.connect(self.create_new_folder_at_root)
         new_folder_btn.setFixedSize(30, 30)
-        
-        # Botón para refrescar
+  
         refresh_btn = QPushButton("🔄")
         refresh_btn.setToolTip("Refrescar Explorador")
         refresh_btn.clicked.connect(self.update_file_explorer)
         refresh_btn.setFixedSize(30, 30)
-        
-        # Barra de búsqueda
+
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Buscar archivos...")
         self.search_input.textChanged.connect(self.filter_file_explorer)
@@ -2728,39 +3104,30 @@ class IllustratorWindow(QMainWindow):
         toolbar_layout.addWidget(self.search_input)
         
         layout.addLayout(toolbar_layout)
-        
-        # Modelo y vista del árbol de archivos
+
         self.file_model = QFileSystemModel()
         self.file_model.setRootPath(self.project_path)
-        
-        # Filtrar solo archivos y carpetas (no mostrar unidades, etc.)
+
         self.file_model.setFilter(QDir.AllDirs | QDir.Files | QDir.NoDotAndDotDot)
         
         self.file_tree = QTreeView()
         self.file_tree.setModel(self.file_model)
         self.file_tree.setRootIndex(self.file_model.index(self.project_path))
-        
-        # Configurar el árbol
+
         self.file_tree.setAnimated(True)
         self.file_tree.setIndentation(15)
         self.file_tree.setSortingEnabled(True)
         self.file_tree.sortByColumn(0, Qt.AscendingOrder)
         
-        # Ocultar columnas innecesarias
-        for i in range(1, 4):  # Tamaño, Tipo, Fecha de modificación
+        for i in range(1, 4): 
             self.file_tree.hideColumn(i)
-        
-        # Configurar tamaño de íconos
+
         self.file_tree.setIconSize(QSize(16, 16))
-        
-        # Conectar doble click
         self.file_tree.doubleClicked.connect(self.on_file_double_clicked)
         
         layout.addWidget(self.file_tree)
         explorer_widget.setLayout(layout)
         self.file_explorer_panel.setWidget(explorer_widget)
-        
-        # Aplicar delegate personalizado para íconos
         delegate = FileIconDelegate(self.file_tree)
         self.file_tree.setItemDelegateForColumn(0, delegate)
 
@@ -2793,10 +3160,8 @@ class IllustratorWindow(QMainWindow):
     def filter_file_explorer(self, text):
         """Filtra los archivos visibles en el explorador"""
         if not text.strip():
-            # Mostrar todos si no hay texto de búsqueda
             self.file_model.setNameFilters(["*"])
         else:
-            # Filtrar por patrón
             self.file_model.setNameFilters([f"*{text}*"])
     def show_new_file_dialog_at_root(self):
         """Muestra el diálogo para crear archivo en la raíz del proyecto"""
@@ -2827,166 +3192,137 @@ class IllustratorWindow(QMainWindow):
     def filter_file_explorer(self, text):
         """Filtra los archivos visibles en el explorador"""
         if not text.strip():
-            # Mostrar todos si no hay texto de búsqueda
             self.file_model.setNameFilters(["*"])
         else:
-            # Filtrar por patrón
             self.file_model.setNameFilters([f"*{text}*"])
     def setup_shortcuts(self):
         """Configura los atajos de teclado globales"""
-        # Guardar archivo actual - Ctrl+S
         self.save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
         self.save_shortcut.activated.connect(self.save_current_file)
-        
-        # Guardar todos los archivos - Ctrl+Shift+S
+
         self.save_all_shortcut = QShortcut(QKeySequence("Ctrl+Shift+S"), self)
         self.save_all_shortcut.activated.connect(self.save_all_files)
-        
-        # Cerrar pestaña actual - Ctrl+W
+
         self.close_tab_shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
         self.close_tab_shortcut.activated.connect(self.close_current_tab)
-        
-        # Nuevo archivo - Ctrl+N
+
         self.new_file_shortcut = QShortcut(QKeySequence("Ctrl+N"), self)
         self.new_file_shortcut.activated.connect(self.new_file_with_template)
     def create_menu_bar(self):
-        # Limpiar la barra de menús existente primero
         menubar = self.menuBar()
         menubar.clear()
         
-        # === MENÚ ARCHIVO ===
         file_menu = menubar.addMenu("Archivo")
-        
-        # Nuevo archivo
+
         new_action = QAction("Nuevo Archivo", self)
         new_action.setShortcut("Ctrl+N")
         new_action.triggered.connect(self.new_file_with_template)
         file_menu.addAction(new_action)
         
-        # Nuevo proyecto
         new_project_action = QAction("Nuevo Proyecto", self)
         new_project_action.setShortcut("Ctrl+Shift+N")
         new_project_action.triggered.connect(self.new_project)
         file_menu.addAction(new_project_action)
         
         file_menu.addSeparator()
-        
-        # Abrir archivo
+
         open_action = QAction("Abrir Archivo", self)
         open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self.open_file)
         file_menu.addAction(open_action)
         
-        # Abrir proyecto
         open_project_action = QAction("Abrir Proyecto", self)
         open_project_action.setShortcut("Ctrl+Shift+O")
         open_project_action.triggered.connect(self.open_project)
         file_menu.addAction(open_project_action)
         
         file_menu.addSeparator()
-        
-        # Guardar
+
         self.save_action = QAction("Guardar", self)
         self.save_action.setShortcut("Ctrl+S")
         self.save_action.triggered.connect(self.save_current_file)
         self.save_action.setEnabled(False)
         file_menu.addAction(self.save_action)
-        
-        # Guardar como
+
         self.save_as_action = QAction("Guardar Como...", self)
         self.save_as_action.setShortcut("Ctrl+Shift+S")
         self.save_as_action.triggered.connect(self.save_file_as)
         self.save_as_action.setEnabled(False)
         file_menu.addAction(self.save_as_action)
-        
-        # Guardar todos
+ 
         save_all_action = QAction("Guardar Todos", self)
         save_all_action.setShortcut("Ctrl+Alt+S")
         save_all_action.triggered.connect(self.save_all_files)
         file_menu.addAction(save_all_action)
         
         file_menu.addSeparator()
-        
-        # Cerrar pestaña
+
         self.close_tab_action = QAction("Cerrar Pestaña", self)
         self.close_tab_action.setShortcut("Ctrl+W")
         self.close_tab_action.triggered.connect(self.close_current_tab)
         self.close_tab_action.setEnabled(False)
         file_menu.addAction(self.close_tab_action)
-        
-        # Cerrar todos
+
         close_all_action = QAction("Cerrar Todos", self)
         close_all_action.setShortcut("Ctrl+Shift+W")
         close_all_action.triggered.connect(self.close_all_tabs)
         file_menu.addAction(close_all_action)
         
         file_menu.addSeparator()
-        
-        # Salir
+
         exit_action = QAction("Salir", self)
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
-        
-        # === MENÚ EDICIÓN ===
+
         edit_menu = menubar.addMenu("Edicion")
-        
-        # Deshacer
+  
         undo_action = QAction("Deshacer", self)
         undo_action.setShortcut("Ctrl+Z")
         undo_action.triggered.connect(self.undo)
         edit_menu.addAction(undo_action)
-        
-        # Rehacer
+
         redo_action = QAction("Rehacer", self)
         redo_action.setShortcut("Ctrl+Y")
         redo_action.triggered.connect(self.redo)
         edit_menu.addAction(redo_action)
         
         edit_menu.addSeparator()
-        
-        # Cortar
+
         cut_action = QAction("Cortar", self)
         cut_action.setShortcut("Ctrl+X")
         cut_action.triggered.connect(self.cut)
         edit_menu.addAction(cut_action)
-        
-        # Copiar
+
         copy_action = QAction("Copiar", self)
         copy_action.setShortcut("Ctrl+C")
         copy_action.triggered.connect(self.copy)
         edit_menu.addAction(copy_action)
-        
-        # Pegar
+   
         paste_action = QAction("Pegar", self)
         paste_action.setShortcut("Ctrl+V")
         paste_action.triggered.connect(self.paste)
         edit_menu.addAction(paste_action)
         
         edit_menu.addSeparator()
-        
-        # Seleccionar todo
+
         select_all_action = QAction("Seleccionar Todo", self)
         select_all_action.setShortcut("Ctrl+A")
         select_all_action.triggered.connect(self.select_all)
         edit_menu.addAction(select_all_action)
-        
-        # Buscar
+
         find_action = QAction("Buscar", self)
         find_action.setShortcut("Ctrl+F")
         find_action.triggered.connect(self.find)
         edit_menu.addAction(find_action)
-        
-        # Reemplazar
+
         replace_action = QAction("Reemplazar", self)
         replace_action.setShortcut("Ctrl+H")
         replace_action.triggered.connect(self.replace)
         edit_menu.addAction(replace_action)
-        
-        # === MENÚ VER ===
+
         view_menu = menubar.addMenu("Ver")
-        
-        # Paneles de herramientas
+
         panels_menu = view_menu.addMenu("Paneles")
         
         self.tool_panel_action = QAction("Panel de Herramientas", self)
@@ -3020,8 +3356,7 @@ class IllustratorWindow(QMainWindow):
         panels_menu.addAction(self.explorer_panel_action)
         
         view_menu.addSeparator()
-        
-        # Presets de workspace
+
         workspace_menu = view_menu.addMenu("Espacios de Trabajo")
         
         default_workspace = QAction("Por Defecto", self)
@@ -3045,8 +3380,7 @@ class IllustratorWindow(QMainWindow):
         workspace_menu.addAction(development_workspace)
         
         view_menu.addSeparator()
-        
-        # Zoom
+
         zoom_in_action = QAction("Acercar", self)
         zoom_in_action.setShortcut("Ctrl++")
         zoom_in_action.triggered.connect(self.zoom_in)
@@ -3061,11 +3395,9 @@ class IllustratorWindow(QMainWindow):
         reset_zoom_action.setShortcut("Ctrl+0")
         reset_zoom_action.triggered.connect(self.reset_zoom)
         view_menu.addAction(reset_zoom_action)
-        
-        # === MENÚ DISEÑO ===
+
         design_menu = menubar.addMenu("Diseno")
-        
-        # Generar código
+
         gen_xml_action = QAction("Generar XML", self)
         gen_xml_action.setShortcut("Ctrl+Shift+X")
         gen_xml_action.triggered.connect(self.generate_xml_code)
@@ -3077,24 +3409,20 @@ class IllustratorWindow(QMainWindow):
         design_menu.addAction(gen_java_action)
         
         design_menu.addSeparator()
-        
-        # Exportar
+
         export_action = QAction("Exportar Proyecto", self)
         export_action.setShortcut("Ctrl+E")
         export_action.triggered.connect(self.export_project)
         design_menu.addAction(export_action)
-        
-        # === MENÚ HERRAMIENTAS ===
+
         tools_menu = menubar.addMenu("Herramientas")
-        
-        # Diseñador Android
+
         android_designer_action = QAction("Disenador Android", self)
         android_designer_action.triggered.connect(self.open_android_designer)
         tools_menu.addAction(android_designer_action)
         
         tools_menu.addSeparator()
-        
-        # Editores de código
+
         java_editor_action = QAction("Editor Java", self)
         java_editor_action.triggered.connect(self.open_java_editor)
         tools_menu.addAction(java_editor_action)
@@ -3104,22 +3432,18 @@ class IllustratorWindow(QMainWindow):
         tools_menu.addAction(xml_editor_action)
         
         tools_menu.addSeparator()
-        
-        # IA Assistant
+
         ai_chat_action = QAction("Chat IA", self)
         ai_chat_action.setShortcut("Ctrl+I")
         ai_chat_action.triggered.connect(self.open_ai_chat)
         tools_menu.addAction(ai_chat_action)
-        
-        # Project Explorer
+
         project_explorer_action = QAction("Explorador de Proyectos", self)
         project_explorer_action.triggered.connect(self.open_project_explorer)
         tools_menu.addAction(project_explorer_action)
-        
-        # === MENÚ VENTANA ===
+
         window_menu = menubar.addMenu("Ventana")
-        
-        # Organización de ventanas
+
         cascade_action = QAction("Cascada", self)
         cascade_action.triggered.connect(self.cascade_windows)
         window_menu.addAction(cascade_action)
@@ -3133,21 +3457,17 @@ class IllustratorWindow(QMainWindow):
         close_all_windows_action = QAction("Cerrar Todas las Ventanas", self)
         close_all_windows_action.triggered.connect(self.close_all_windows)
         window_menu.addAction(close_all_windows_action)
-        
-        # === MENÚ AYUDA ===
+
         help_menu = menubar.addMenu("Ayuda")
-        
-        # Documentación
+
         docs_action = QAction("Documentacion", self)
         docs_action.triggered.connect(self.show_documentation)
         help_menu.addAction(docs_action)
-        
-        # Acerca de
+
         about_action = QAction("Acerca de", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
-    # === MÉTODOS PARA LOS MENÚS ===
 
     def new_project(self):
         """Crea un nuevo proyecto"""
@@ -3201,7 +3521,6 @@ class IllustratorWindow(QMainWindow):
         """Diálogo de reemplazar"""
         QMessageBox.information(self, "Reemplazar", "Funcionalidad de reemplazar en desarrollo")
 
-    # Métodos para mostrar/ocultar paneles
     def toggle_tool_panel(self):
         self.tool_panel.setVisible(self.tool_panel_action.isChecked())
 
@@ -3217,7 +3536,6 @@ class IllustratorWindow(QMainWindow):
     def toggle_explorer_panel(self):
         self.file_explorer_panel.setVisible(self.explorer_panel_action.isChecked())
 
-    # Métodos de zoom
     def zoom_in(self):
         """Acercar zoom"""
         self.statusBar().showMessage("Zoom: Acercar")
@@ -3230,7 +3548,6 @@ class IllustratorWindow(QMainWindow):
         """Resetear zoom"""
         self.statusBar().showMessage("Zoom: 100%")
 
-    # Métodos de generación de código
     def generate_xml_code(self):
         """Generar código XML"""
         if hasattr(self, 'ai_panel'):
@@ -3246,7 +3563,6 @@ class IllustratorWindow(QMainWindow):
         if hasattr(self, 'ai_panel'):
             self.ai_panel.export_project()
 
-    # Métodos de ayuda
     def show_documentation(self):
         """Mostrar documentación"""
         QMessageBox.information(self, "Documentación", "Documentación disponible en desarrollo")
@@ -3263,18 +3579,14 @@ class IllustratorWindow(QMainWindow):
         QMessageBox.about(self, "Acerca de Creators Studio", about_text)
     def new_file_with_template(self):
         """Crea un nuevo archivo usando el diálogo de plantillas"""
-        # Obtener la ruta actual seleccionada en el explorador
         current_index = self.file_tree.currentIndex()
         if current_index.isValid():
             current_path = self.file_model.filePath(current_index)
-            # Si es un archivo, usar el directorio padre
             if os.path.isfile(current_path):
                 current_path = os.path.dirname(current_path)
         else:
-            # Si no hay selección, usar la raíz del proyecto
             current_path = self.project_path
-        
-        # Mostrar diálogo de nuevo archivo
+
         dialog = NewFileDialog(self.project_language, self, current_path)
         if dialog.exec_() == QDialog.Accepted:
             self.create_file_from_dialog(dialog, current_path)
@@ -3282,7 +3594,6 @@ class IllustratorWindow(QMainWindow):
     def save_file_as(self):
         """Guarda el archivo actual con un nombre diferente"""
         if self.current_editor:
-            # Encontrar el archivo actual
             current_path = None
             for path, tab_data in self.open_files.items():
                 if tab_data['editor'] == self.current_editor:
@@ -3290,7 +3601,6 @@ class IllustratorWindow(QMainWindow):
                     break
             
             if current_path:
-                # Diálogo para guardar como
                 file_path, ok = QFileDialog.getSaveFileName(
                     self, 
                     "Guardar Como", 
@@ -3301,7 +3611,6 @@ class IllustratorWindow(QMainWindow):
                 if ok and file_path:
                     content = self.current_editor.toPlainText()
                     if self.save_file(file_path, content):
-                        # Cerrar la pestaña actual y abrir la nueva
                         self.close_current_tab()
                         self.open_file_in_tab(file_path)
 
@@ -3329,12 +3638,11 @@ class IllustratorWindow(QMainWindow):
     def close_current_tab(self):
         """Cierra la pestaña actual"""
         current_index = self.tab_widget.currentIndex()
-        if current_index > 0:  # No cerrar la pestaña del emulador (índice 0)
+        if current_index > 0:
             self.close_tab(current_index)
 
     def close_all_tabs(self):
         """Cierra todas las pestañas excepto el emulador"""
-        # Cerrar desde la última pestaña hasta la primera (excepto emulador)
         for i in range(self.tab_widget.count() - 1, 0, -1):
             self.close_tab(i)
 
@@ -3347,13 +3655,11 @@ class IllustratorWindow(QMainWindow):
             
             if modified:
                 self.tab_widget.setTabText(index, f"{file_name} *")
-                # Habilitar acciones de guardar
                 self.save_action.setEnabled(True)
                 self.save_as_action.setEnabled(True)
             else:
                 self.tab_widget.setTabText(index, file_name)
-                
-                # Deshabilitar acciones de guardar si ningún archivo está modificado
+
                 any_modified = any(
                     tab_data['editor'].document().isModified() 
                     for tab_data in self.open_files.values()
@@ -3366,7 +3672,6 @@ class IllustratorWindow(QMainWindow):
             preset = self.workspace_presets[preset_name]
             self.current_preset = preset_name
 
-            # Primero ocultar todos los paneles
             all_panels = {
                 "Tools": self.tool_panel,
                 "Layers": self.layers_panel,
@@ -3381,8 +3686,7 @@ class IllustratorWindow(QMainWindow):
             for panel_name, panel in all_panels.items():
                 if panel:
                     panel.setVisible(False)
-            
-            # Mostrar solo los paneles del preset seleccionado
+
             for panel_name in preset.panels:
                 if panel_name in all_panels and all_panels[panel_name]:
                     all_panels[panel_name].setVisible(True)
@@ -3497,31 +3801,26 @@ class IllustratorWindow(QMainWindow):
         try:
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-            
-            # Crear pestaña
+
             tab_widget = QWidget()
             layout = QVBoxLayout(tab_widget)
             layout.setContentsMargins(0, 0, 0, 0)
-            
-            # Si es archivo XML, mostrar el emulador/diseñador
+
             if file_path.lower().endswith('.xml'):
                 self.show_xml_designer(tab_widget, content, file_path)
             else:
-                # Para otros archivos, usar editor de código
                 text_edit = EnhancedCodeEditor(theme="dark")
                 text_edit.setPlainText(content)
                 text_edit.set_highlighter(file_path)
                 layout.addWidget(text_edit)
             
             tab_widget.setLayout(layout)
-            
-            # Configurar pestaña
+
             file_name = os.path.basename(file_path)
             tab_index = self.tab_widget.addTab(tab_widget, file_name)
             self.tab_widget.setCurrentIndex(tab_index)
             self.tab_widget.setTabToolTip(tab_index, file_path)
             
-            # Trackear archivo
             self.open_files[file_path] = {
                 'widget': tab_widget,
                 'editor': text_edit if not file_path.lower().endswith('.xml') else None,
@@ -3536,20 +3835,16 @@ class IllustratorWindow(QMainWindow):
     def show_xml_designer(self, parent_widget, xml_content, file_path):
         """Muestra el diseñador para archivos XML"""
         layout = parent_widget.layout()
-        
-        # Crear splitter para dividir vista XML/Preview
+
         splitter = QSplitter(Qt.Horizontal)
-        
-        # Editor XML (izquierda)
+
         xml_editor = EnhancedCodeEditor(theme="dark")
         xml_editor.setPlainText(xml_content)
         xml_editor.set_highlighter(file_path)
-        
-        # Vista previa/emulador (derecha)
+
         preview_widget = QWidget()
         preview_layout = QVBoxLayout(preview_widget)
-        
-        # Aquí iría tu lógica del emulador Android
+
         preview_label = QLabel("Vista previa del layout XML\n(Emulador Android)")
         preview_label.setAlignment(Qt.AlignCenter)
         preview_label.setStyleSheet("font-size: 14px; color: #666; padding: 50px; background-color: #2C2C2C; color: white;")
@@ -3557,7 +3852,7 @@ class IllustratorWindow(QMainWindow):
         
         splitter.addWidget(xml_editor)
         splitter.addWidget(preview_widget)
-        splitter.setSizes([400, 400])  # Dividir 50/50
+        splitter.setSizes([400, 400]) 
         
         layout.addWidget(splitter)
 
@@ -3603,7 +3898,6 @@ class IllustratorWindow(QMainWindow):
         
         layout = QVBoxLayout(dialog)
         
-        # Campo de búsqueda
         find_layout = QHBoxLayout()
         find_layout.addWidget(QLabel("Texto a buscar:"))
         find_input = QLineEdit()
@@ -3611,15 +3905,13 @@ class IllustratorWindow(QMainWindow):
         find_layout.addWidget(find_input)
         layout.addLayout(find_layout)
         
-        # Opciones
         options_layout = QHBoxLayout()
         case_sensitive = QCheckBox("Coincidir mayúsculas/minúsculas")
         whole_word = QCheckBox("Palabra completa")
         options_layout.addWidget(case_sensitive)
         options_layout.addWidget(whole_word)
         layout.addLayout(options_layout)
-        
-        # Botones
+
         button_layout = QHBoxLayout()
         find_next_btn = QPushButton("Buscar siguiente")
         find_prev_btn = QPushButton("Buscar anterior")
@@ -3668,7 +3960,6 @@ class IllustratorWindow(QMainWindow):
         cursor = editor.textCursor()
         if cursor.hasSelection():
             text = cursor.selectedText()
-            # Implementar lógica básica de formateo
             lines = text.split('\n')
             formatted_lines = []
             indent_level = 0

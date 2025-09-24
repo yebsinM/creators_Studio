@@ -133,7 +133,6 @@ class LanguageManager(QDialog):
         """)
         self.layout.addWidget(title)
 
-        # Configuración de versiones
         self.setup_version_configuration()
         
         self.system_info = QLabel()
@@ -160,8 +159,7 @@ class LanguageManager(QDialog):
         """Configuración de versiones mínimas requeridas"""
         version_group = QGroupBox("Configuración de Versiones Mínimas")
         version_layout = QVBoxLayout(version_group)
-        
-        # Selector de versión mínima
+
         version_selector_layout = QHBoxLayout()
         version_selector_layout.addWidget(QLabel("Versión mínima requerida:"))
         
@@ -172,8 +170,7 @@ class LanguageManager(QDialog):
         
         version_selector_layout.addStretch()
         version_layout.addLayout(version_selector_layout)
-        
-        # Checkbox para forzar reinstalación
+ 
         self.force_reinstall_check = QCheckBox("Forzar reinstalación incluso si ya está instalado")
         self.force_reinstall_check.setChecked(False)
         version_layout.addWidget(self.force_reinstall_check)
@@ -188,8 +185,7 @@ class LanguageManager(QDialog):
     def get_minimum_versions(self):
         """Retorna las versiones mínimas requeridas según la selección"""
         version_type = self.version_combo.currentText()
-        
-        # Versiones mínimas para desarrollo moderno
+
         if version_type == "LTS":
             return {
                 "Java": "11",
@@ -208,7 +204,7 @@ class LanguageManager(QDialog):
                 "C++": "12.0",
                 "C#": "7.0"
             }
-        else:  # Estable (Recomendada)
+        else: 
             return {
                 "Java": "17",
                 "Kotlin": "1.8",
@@ -223,8 +219,7 @@ class LanguageManager(QDialog):
         try:
             if not current_version or current_version == "No instalado":
                 return False
-            
-            # Extraer números de versión
+
             import re
             current_match = re.search(r'(\d+\.\d+\.\d+|\d+\.\d+|\d+)', str(current_version))
             min_match = re.search(r'(\d+\.\d+\.\d+|\d+\.\d+|\d+)', str(min_version))
@@ -234,21 +229,19 @@ class LanguageManager(QDialog):
             
             current_parts = list(map(int, current_match.group(1).split('.')))
             min_parts = list(map(int, min_match.group(1).split('.')))
-            
-            # Asegurar misma longitud
+
             while len(current_parts) < len(min_parts):
                 current_parts.append(0)
             while len(min_parts) < len(current_parts):
                 min_parts.append(0)
-            
-            # Comparar versión
+
             for i in range(len(min_parts)):
                 if current_parts[i] > min_parts[i]:
                     return True
                 elif current_parts[i] < min_parts[i]:
                     return False
             
-            return True  # Versiones iguales
+            return True 
             
         except Exception as e:
             print(f"Error comparando versiones: {e}")
@@ -331,7 +324,6 @@ class LanguageManager(QDialog):
             }
         }
 
-        # Verificar instalación y compatibilidad
         for lang_name in self.languages.keys():
             check_method = getattr(self, f"check_{lang_name.lower().replace('/', '_').replace('#', 'sharp')}_installed")
             installed, version = check_method()
@@ -373,8 +365,6 @@ class LanguageManager(QDialog):
         except:
             return False, "No instalado"
 
-    # ... (mantener los métodos check_*_installed existentes igual)
-    # Solo agregar los métodos que faltan para mantener la estructura
 
     def check_kotlin_installed(self):
         """Verifica si Kotlin está instalado"""
@@ -502,13 +492,11 @@ class LanguageManager(QDialog):
             widget = self.cards_layout.itemAt(i).widget()
             if widget and not isinstance(widget, QLabel):
                 widget.deleteLater()
-        
-        # Lenguajes requeridos
+
         for lang, data in self.languages.items():
             if data["required"]:
                 self.add_language_card(lang, data)
 
-        # Lenguajes opcionales
         for lang, data in self.languages.items():
             if not data["required"]:
                 self.add_language_card(lang, data)
@@ -532,8 +520,7 @@ class LanguageManager(QDialog):
         
         title = QLabel(f"<b>{lang}</b>")
         title.setStyleSheet("font-size: 16px; color: #333;")
-        
-        # Información de versión y compatibilidad
+
         status_text = ""
         if data["installed"]:
             if data["compatible"]:
@@ -558,8 +545,7 @@ class LanguageManager(QDialog):
         
         action_btn = QPushButton()
         action_btn.setFixedSize(120, 40)
-        
-        # Determinar texto y color del botón
+
         if data["installed"] and data["compatible"] and not self.force_reinstall_check.isChecked():
             action_btn.setText("✅ Compatible")
             action_btn.setEnabled(False)
@@ -614,8 +600,7 @@ class LanguageManager(QDialog):
         if language not in self.languages:
             QMessageBox.warning(self, "Error", f"Lenguaje {language} no reconocido")
             return
-        
-        # Verificar si ya está instalado y es compatible
+
         lang_data = self.languages[language]
         if lang_data["installed"] and lang_data["compatible"] and not self.force_reinstall_check.isChecked():
             QMessageBox.information(
@@ -625,8 +610,7 @@ class LanguageManager(QDialog):
                 f"Versión mínima requerida: v{lang_data['min_version']}"
             )
             return
-        
-        # Confirmar instalación
+
         min_version = lang_data["min_version"]
         confirm_msg = f"¿Instalar {language} versión mínima {min_version}?"
         
@@ -646,8 +630,7 @@ class LanguageManager(QDialog):
         
         if reply != QMessageBox.Yes:
             return
- 
-        # Proceder con instalación
+
         self.progress_dialog = QProgressDialog(
             f"Preparando instalación de {language}...", 
             "Cancelar", 
@@ -665,7 +648,6 @@ class LanguageManager(QDialog):
         self.progress_dialog.setValue(0)
         QApplication.processEvents()
 
-        # Pasar la versión mínima al hilo de instalación
         min_version = self.languages[language]["min_version"]
         self.install_thread = InstallThread(language, min_version)
         self.install_thread.progress_updated.connect(self.update_progress)
@@ -730,24 +712,15 @@ class InstallThread(QThread):
                 return
 
             system = platform.system().lower()
-            
-            # Aquí modificarías las URLs de descarga para usar la versión específica
-            # Por ejemplo, para Java:
+
             if self.language == "Java":
-                # Usar versión basada en min_version
                 if int(self.min_version.split('.')[0]) >= 17:
                     java_version = "17"
                 elif int(self.min_version.split('.')[0]) >= 11:
                     java_version = "11"
                 else:
-                    java_version = "8"
-                
+                    java_version = "8" 
                 self.progress_updated.emit(10, f"Instalando Java {java_version}...")
-                # Modificar URLs para usar la versión específica
-                # ... (código de instalación adaptado)
-            
-            # Patrón similar para otros lenguajes
-            # ...
             
             self.finished.emit(True, f"{self.language} instalado correctamente")
             

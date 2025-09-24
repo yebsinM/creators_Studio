@@ -1130,10 +1130,7 @@ class ProjectListWidget(QWidget):
                         "Solo se eliminará la referencia del proyecto."
                     )
                 
-                # 2. Eliminar la referencia del archivo rutas.txt
                 path_manager.remove_project(project_data["name"], project_data["path"])
-                
-                # 3. Eliminar el archivo JSON de metadatos
                 projects_dir = Path.home() / ".myapp_projects"
                 json_deleted = False
                 for file in projects_dir.glob("*.json"):
@@ -1147,11 +1144,8 @@ class ProjectListWidget(QWidget):
                                 break
                     except:
                         continue
-                
-                # 4. Actualizar la lista
+
                 self.load_projects()
-                
-                # 5. Mostrar resultado
                 if files_deleted:
                     QMessageBox.information(
                         self, 
