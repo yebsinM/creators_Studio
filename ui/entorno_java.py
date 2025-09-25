@@ -19,14 +19,14 @@ from PySide6.QtWidgets import (
     QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsItem, QSlider,
     QFileDialog, QScrollArea, QGroupBox, QRadioButton, QCheckBox,
     QSizePolicy, QTabWidget, QTextEdit, QDialog,
-    QPlainTextEdit, QListWidgetItem, QStyledItemDelegate 
+    QPlainTextEdit, QListWidgetItem, QStyledItemDelegate ,QToolBox,QScrollArea,QButtonGroup,QGridLayout
 )
 
 
 from PySide6.QtGui import (
     QIcon, QAction, QCursor, QColor, QBrush, QTextCursor, QFont,
     QPen, QPainter, QTextFormat, QSyntaxHighlighter, QTextCharFormat, QPalette,
-    QShortcut, QKeySequence, 
+    QShortcut, QKeySequence, QPixmap, QPainter ,QLinearGradient, QRadialGradient
 )
 from PySide6.QtCore import (
     Qt, QSize, QPoint, Signal, QDir, QRectF, QSettings, QThread, 
@@ -2517,6 +2517,405 @@ class FileIconDelegate(QStyledItemDelegate):
                 icon_text = self.icon_map.get(ext.lower(), '📄')  
 
             option.text = f"{icon_text} {file_name}"
+class IllustratorToolsPanel(QDockWidget):
+    """Panel de herramientas de Illustrator para diseño Android"""
+    
+    def __init__(self, parent=None):
+        super().__init__("Herramientas Illustrator", parent)
+        self.parent = parent
+        self.setup_ui()
+    
+    def setup_ui(self):
+        tool_widget = QWidget()
+        layout = QVBoxLayout(tool_widget)
+        
+        # ToolBox para organizar las herramientas por categorías
+        self.tool_box = QToolBox()
+        
+        # Grupo de botones para herramientas de selección
+        self.tool_group = QButtonGroup(self)
+        self.tool_group.setExclusive(True)
+        
+        # Herramientas básicas
+        self.setup_basic_tools()
+        
+        # Herramientas de forma
+        self.setup_shape_tools()
+        
+        # Herramientas de texto
+        self.setup_text_tools()
+        
+        # Herramientas de transformación
+        self.setup_transform_tools()
+        
+        layout.addWidget(self.tool_box)
+        layout.addStretch()
+        
+        tool_widget.setLayout(layout)
+        self.setWidget(tool_widget)
+    
+    def setup_basic_tools(self):
+        """Configura herramientas básicas de selección y navegación"""
+        basic_widget = QWidget()
+        layout = QGridLayout(basic_widget)
+        
+        tools = [
+            ("🔍", "Selección", "select", "Seleccionar y mover elementos"),
+            ("✋", "Mano", "hand", "Navegar por el canvas"),
+            ("🔎", "Zoom", "zoom", "Acercar/alejar la vista"),
+            ("📏", "Regla", "ruler", "Medir distancias y alinear")
+        ]
+        
+        row, col = 0, 0
+        for icon, name, tool_id, tooltip in tools:
+            btn = self.create_tool_button(icon, name, tool_id, tooltip)
+            layout.addWidget(btn, row, col)
+            col += 1
+            if col > 1:
+                col = 0
+                row += 1
+        
+        basic_widget.setLayout(layout)
+        self.tool_box.addItem(basic_widget, "Básicas")
+    
+    def setup_shape_tools(self):
+        """Configura herramientas de forma"""
+        shape_widget = QWidget()
+        layout = QGridLayout(shape_widget)
+        
+        tools = [
+            ("⬜", "Rectángulo", "rectangle", "Crear rectángulos y cuadrados"),
+            ("⭕", "Elipse", "ellipse", "Crear círculos y elipses"),
+            ("🔺", "Polígono", "polygon", "Crear polígonos regulares"),
+            ("⭐", "Estrella", "star", "Crear estrellas"),
+            ("🔄", "Espiral", "spiral", "Crear espirales"),
+            ("✏️", "Lápiz", "pencil", "Dibujar formas libres"),
+            ("🖌️", "Pincel", "brush", "Pinceles artísticos")
+        ]
+        
+        row, col = 0, 0
+        for icon, name, tool_id, tooltip in tools:
+            btn = self.create_tool_button(icon, name, tool_id, tooltip)
+            layout.addWidget(btn, row, col)
+            col += 1
+            if col > 1:
+                col = 0
+                row += 1
+        
+        shape_widget.setLayout(layout)
+        self.tool_box.addItem(shape_widget, "Formas")
+    
+    def setup_text_tools(self):
+        """Configura herramientas de texto"""
+        text_widget = QWidget()
+        layout = QGridLayout(text_widget)
+        
+        tools = [
+            ("🔤", "Texto Horizontal", "text_h", "Texto horizontal"),
+            ("🔠", "Texto Vertical", "text_v", "Texto vertical"),
+            ("📝", "Texto en área", "text_area", "Texto en área delimitada"),
+            ("🎨", "Texto en trayecto", "text_path", "Texto siguiendo un trayecto")
+        ]
+        
+        row, col = 0, 0
+        for icon, name, tool_id, tooltip in tools:
+            btn = self.create_tool_button(icon, name, tool_id, tooltip)
+            layout.addWidget(btn, row, col)
+            col += 1
+            if col > 1:
+                col = 0
+                row += 1
+        
+        text_widget.setLayout(layout)
+        self.tool_box.addItem(text_widget, "Texto")
+    
+    def setup_transform_tools(self):
+        """Configura herramientas de transformación"""
+        transform_widget = QWidget()
+        layout = QGridLayout(transform_widget)
+        
+        tools = [
+            ("↔️", "Escala", "scale", "Escalar elementos"),
+            ("↩️", "Rotar", "rotate", "Rotar elementos"),
+            ("✂️", "Tijeras", "scissors", "Dividir trayectos"),
+            ("🔧", "Deformar", "warp", "Deformar elementos"),
+            ("🔄", "Reflejar", "reflect", "Reflejar elementos")
+        ]
+        
+        row, col = 0, 0
+        for icon, name, tool_id, tooltip in tools:
+            btn = self.create_tool_button(icon, name, tool_id, tooltip)
+            layout.addWidget(btn, row, col)
+            col += 1
+            if col > 1:
+                col = 0
+                row += 1
+        
+        transform_widget.setLayout(layout)
+        self.tool_box.addItem(transform_widget, "Transformación")
+    
+    def create_tool_button(self, icon, name, tool_id, tooltip):
+        """Crea un botón de herramienta personalizado"""
+        btn = QPushButton(f"{icon} {name}")
+        btn.setCheckable(True)
+        btn.setToolTip(tooltip)
+        btn.setFixedHeight(40)
+        btn.setStyleSheet("""
+            QPushButton {
+                text-align: left;
+                padding: 5px;
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                background-color: #f0f0f0;
+            }
+            QPushButton:checked {
+                background-color: #007acc;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+            }
+        """)
+        
+        btn.clicked.connect(lambda: self.tool_selected(tool_id))
+        self.tool_group.addButton(btn)
+        
+        return btn
+    
+    def tool_selected(self, tool_id):
+        """Maneja la selección de una herramienta"""
+        if self.parent and hasattr(self.parent, 'design_canvas'):
+            self.parent.design_canvas.setTool(tool_id)
+        
+        # Actualizar estado de la herramienta seleccionada
+        print(f"Herramienta seleccionada: {tool_id}")
+
+class EffectsPanel(QDockWidget):
+    """Panel de efectos para aplicaciones Android (XML/Java)"""
+    
+    def __init__(self, parent=None):
+        super().__init__("Efectos Android", parent)
+        self.parent = parent
+        self.setup_ui()
+    
+    def setup_ui(self):
+        effect_widget = QWidget()
+        layout = QVBoxLayout(effect_widget)
+        
+        # Scroll area para efectos
+        scroll_area = QScrollArea()
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        
+        # Efectos de animación
+        self.setup_animation_effects(scroll_layout)
+        
+        # Efectos de vista
+        self.setup_view_effects(scroll_layout)
+        
+        # Efectos de transición
+        self.setup_transition_effects(scroll_layout)
+        
+        # Efectos de material design
+        self.setup_material_effects(scroll_layout)
+        
+        scroll_widget.setLayout(scroll_layout)
+        scroll_area.setWidget(scroll_widget)
+        scroll_area.setWidgetResizable(True)
+        
+        layout.addWidget(scroll_area)
+        effect_widget.setLayout(layout)
+        self.setWidget(effect_widget)
+    
+    def setup_animation_effects(self, layout):
+        """Configura efectos de animación"""
+        group = QGroupBox("🎭 Animaciones")
+        group_layout = QGridLayout(group)
+        
+        animations = [
+            ("Fade In", "fade_in", "android:alpha de 0 a 1"),
+            ("Fade Out", "fade_out", "android:alpha de 1 a 0"),
+            ("Slide In", "slide_in", "Deslizar desde los bordes"),
+            ("Slide Out", "slide_out", "Deslizar hacia los bordes"),
+            ("Zoom In", "zoom_in", "Escalar de pequeño a grande"),
+            ("Zoom Out", "zoom_out", "Escalar de grande a pequeño"),
+            ("Rotate", "rotate", "Rotación continua"),
+            ("Bounce", "bounce", "Efecto rebote")
+        ]
+        
+        row, col = 0, 0
+        for name, effect_id, description in animations:
+            btn = QPushButton(name)
+            btn.setToolTip(description)
+            btn.clicked.connect(lambda checked, eid=effect_id: self.apply_animation_effect(eid))
+            group_layout.addWidget(btn, row, col)
+            col += 1
+            if col > 1:
+                col = 0
+                row += 1
+        
+        layout.addWidget(group)
+    
+    def setup_view_effects(self, layout):
+        """Configura efectos de vista"""
+        group = QGroupBox("👁️ Efectos de Vista")
+        group_layout = QGridLayout(group)
+        
+        effects = [
+            ("Elevación", "elevation", "Sombras y profundidad"),
+            ("Corner Radius", "corner_radius", "Esquinas redondeadas"),
+            ("Border", "border", "Bordes personalizados"),
+            ("Gradient", "gradient", "Fondos degradados"),
+            ("Blur", "blur", "Desenfoque"),
+            ("Shadow", "shadow", "Sombras avanzadas")
+        ]
+        
+        row, col = 0, 0
+        for name, effect_id, description in effects:
+            btn = QPushButton(name)
+            btn.setToolTip(description)
+            btn.clicked.connect(lambda checked, eid=effect_id: self.apply_view_effect(eid))
+            group_layout.addWidget(btn, row, col)
+            col += 1
+            if col > 1:
+                col = 0
+                row += 1
+        
+        layout.addWidget(group)
+    
+    def setup_transition_effects(self, layout):
+        """Configura efectos de transición"""
+        group = QGroupBox("🔄 Transiciones")
+        group_layout = QGridLayout(group)
+        
+        transitions = [
+            ("Crossfade", "crossfade", "Transición suave entre vistas"),
+            ("Explode", "explode", "Efecto explosión"),
+            ("Fade Through", "fade_through", "Fundido a través"),
+            ("Slide", "slide", "Deslizamiento"),
+            ("Shared Element", "shared_element", "Elementos compartidos")
+        ]
+        
+        row, col = 0, 0
+        for name, effect_id, description in transitions:
+            btn = QPushButton(name)
+            btn.setToolTip(description)
+            btn.clicked.connect(lambda checked, eid=effect_id: self.apply_transition_effect(eid))
+            group_layout.addWidget(btn, row, col)
+            col += 1
+            if col > 1:
+                col = 0
+                row += 1
+        
+        layout.addWidget(group)
+    
+    def setup_material_effects(self, layout):
+        """Configura efectos de Material Design"""
+        group = QGroupBox("🎨 Material Design")
+        group_layout = QGridLayout(group)
+        
+        material_effects = [
+            ("Ripple", "ripple", "Efecto de onda al tocar"),
+            ("State List", "state_list", "Estados diferentes"),
+            ("Reveal", "reveal", "Animación de revelado"),
+            ("Morph", "morph", "Transformación de formas"),
+            ("FAB", "fab", "Floating Action Button")
+        ]
+        
+        row, col = 0, 0
+        for name, effect_id, description in material_effects:
+            btn = QPushButton(name)
+            btn.setToolTip(description)
+            btn.clicked.connect(lambda checked, eid=effect_id: self.apply_material_effect(eid))
+            group_layout.addWidget(btn, row, col)
+            col += 1
+            if col > 1:
+                col = 0
+                row += 1
+        
+        layout.addWidget(group)
+    
+    def apply_animation_effect(self, effect_id):
+        """Aplica efecto de animación al elemento seleccionado"""
+        if self.parent and hasattr(self.parent, 'selected_element'):
+            element = self.parent.selected_element
+            if element:
+                animation_xml = self.generate_animation_xml(effect_id, element)
+                self.parent.apply_effect_to_element(element, animation_xml)
+    
+    def apply_view_effect(self, effect_id):
+        """Aplica efecto de vista al elemento seleccionado"""
+        if self.parent and hasattr(self.parent, 'selected_element'):
+            element = self.parent.selected_element
+            if element:
+                view_effect = self.generate_view_effect(effect_id, element)
+                self.parent.apply_effect_to_element(element, view_effect)
+    
+    def apply_transition_effect(self, effect_id):
+        """Aplica efecto de transición"""
+        if self.parent:
+            transition_xml = self.generate_transition_xml(effect_id)
+            self.parent.apply_transition_effect(transition_xml)
+    
+    def apply_material_effect(self, effect_id):
+        """Aplica efecto de Material Design"""
+        if self.parent and hasattr(self.parent, 'selected_element'):
+            element = self.parent.selected_element
+            if element:
+                material_effect = self.generate_material_effect(effect_id, element)
+                self.parent.apply_effect_to_element(element, material_effect)
+    
+    def generate_animation_xml(self, effect_id, element):
+        """Genera código XML para animaciones"""
+        animations = {
+            'fade_in': f'''
+                <alpha xmlns:android="http://schemas.android.com/apk/res/android"
+                    android:fromAlpha="0.0"
+                    android:toAlpha="1.0"
+                    android:duration="300"/>
+            ''',
+            'fade_out': f'''
+                <alpha xmlns:android="http://schemas.android.com/apk/res/android"
+                    android:fromAlpha="1.0"
+                    android:toAlpha="0.0"
+                    android:duration="300"/>
+            ''',
+            'slide_in': f'''
+                <translate xmlns:android="http://schemas.android.com/apk/res/android"
+                    android:fromXDelta="-100%"
+                    android:toXDelta="0%"
+                    android:duration="400"/>
+            ''',
+            'bounce': f'''
+                <set xmlns:android="http://schemas.android.com/apk/res/android"
+                    android:interpolator="@android:anim/bounce_interpolator">
+                    <scale
+                        android:fromXScale="0.5"
+                        android:toXScale="1.0"
+                        android:fromYScale="0.5"
+                        android:toYScale="1.0"
+                        android:duration="600"/>
+                </set>
+            '''
+        }
+        return animations.get(effect_id, '')
+    
+    def generate_view_effect(self, effect_id, element):
+        """Genera efectos de vista"""
+        effects = {
+            'elevation': f'android:elevation="8dp"',
+            'corner_radius': f'android:background="@drawable/rounded_corner"',
+            'gradient': f'android:background="@drawable/gradient_background"'
+        }
+        return effects.get(effect_id, '')
+    
+    def generate_material_effect(self, effect_id, element):
+        """Genera efectos de Material Design"""
+        effects = {
+            'ripple': f'android:background="?attr/selectableItemBackground"',
+            'fab': f'style="@style/Widget.MaterialComponents.FloatingActionButton"'
+        }
+        return effects.get(effect_id, '')
 class IllustratorWindow(QMainWindow):
     closed = Signal()
     
@@ -2545,13 +2944,12 @@ class IllustratorWindow(QMainWindow):
         
        
         self.open_files = {}
-        self.open_windowa = {}
+        self.open_windows = {} 
         self.current_editor = None
         
-      
-        self.current_tool = "select"
-        self.current_color = "#FFFFFF"
-        self.tool_buttons = {}
+
+        self.create_illustrator_tools_panel()  
+        self.create_effects_panel() 
         
         self.setup_workspace()
         self.create_workspace_presets()
@@ -2560,10 +2958,85 @@ class IllustratorWindow(QMainWindow):
 
         self.setup_enhanced_docks()
 
+        
         self.create_menu_bar()
         self.setup_language_specific_features()
         self.setup_context_menu()
-
+    def create_illustrator_tools_panel(self):
+        """Crea el panel de herramientas de Illustrator CORREGIDO"""
+        self.illustrator_tools_panel = IllustratorToolsPanel(self)
+        
+        # CONFIGURACIÓN CORREGIDA PARA QUE SEA VISIBLE Y MOVIBLE:
+        self.illustrator_tools_panel.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.TopDockWidgetArea | Qt.BottomDockWidgetArea)
+        
+        # Hacerlo flotante por defecto
+        self.illustrator_tools_panel.setFloating(True)
+        
+        # Configurar tamaño y posición inicial
+        self.illustrator_tools_panel.setGeometry(100, 100, 300, 500)  # x, y, width, height
+        
+        # Permitir que sea movible y cerrable
+        self.illustrator_tools_panel.setFeatures(
+            QDockWidget.DockWidgetMovable | 
+            QDockWidget.DockWidgetClosable | 
+            QDockWidget.DockWidgetFloatable
+        )
+        
+        # Añadirlo al área de docks
+        self.addDockWidget(Qt.RightDockWidgetArea, self.illustrator_tools_panel)
+        
+        # Hacerlo visible inmediatamente
+        self.illustrator_tools_panel.setVisible(True)
+        
+        # Traerlo al frente
+        self.illustrator_tools_panel.raise_()
+        self.illustrator_tools_panel.activateWindow()
+    
+    def create_effects_panel(self):
+        """Crea el panel de efectos Android CORREGIDO"""
+        self.effects_panel = EffectsPanel(self)
+        
+        # Misma configuración para el panel de efectos
+        self.effects_panel.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.TopDockWidgetArea | Qt.BottomDockWidgetArea)
+        self.effects_panel.setFloating(True)
+        self.effects_panel.setGeometry(450, 100, 300, 500)  # Posición diferente para no solaparse
+        
+        self.effects_panel.setFeatures(
+            QDockWidget.DockWidgetMovable | 
+            QDockWidget.DockWidgetClosable | 
+            QDockWidget.DockWidgetFloatable
+        )
+        
+        self.addDockWidget(Qt.RightDockWidgetArea, self.effects_panel)
+        self.effects_panel.setVisible(True)
+        self.effects_panel.raise_()
+        self.effects_panel.activateWindow()
+        def apply_effect_to_element(self, element, effect_xml):
+            """Aplica un efecto al elemento seleccionado"""
+            if element and effect_xml:
+                # Aquí implementarías la lógica para aplicar el efecto al elemento
+                print(f"Aplicando efecto a {element.id}: {effect_xml}")
+                
+                # Actualizar las propiedades del elemento
+                element.properties['effect'] = effect_xml
+                
+                # Regenerar el XML del elemento
+                new_xml = element.toXML()
+                
+                # Actualizar la vista previa
+                self.update_design_preview()
+    
+    def apply_transition_effect(self, transition_xml):
+        """Aplica efecto de transición a la actividad"""
+        if transition_xml:
+            # Guardar el efecto de transición para la actividad
+            self.transition_effect = transition_xml
+            print(f"Transición aplicada: {transition_xml}")
+    
+    def update_design_preview(self):
+        """Actualiza la vista previa del diseño"""
+        if hasattr(self, 'design_canvas'):
+            self.design_canvas.update()
     def setup_context_menu(self):
         """Configura el menú contextual para el explorador de archivos"""
         self.file_tree.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -3324,12 +3797,19 @@ class IllustratorWindow(QMainWindow):
         view_menu = menubar.addMenu("Ver")
 
         panels_menu = view_menu.addMenu("Paneles")
+     
+
+        self.illustrator_tools_action = QAction("Herramientas Illustrator", self)
+        self.illustrator_tools_action.setCheckable(True)
+        self.illustrator_tools_action.setChecked(False)
+        self.illustrator_tools_action.triggered.connect(self.toggle_illustrator_tools_panel)
+        panels_menu.addAction(self.illustrator_tools_action)
         
-        self.tool_panel_action = QAction("Panel de Herramientas", self)
-        self.tool_panel_action.setCheckable(True)
-        self.tool_panel_action.setChecked(False)
-        self.tool_panel_action.triggered.connect(self.toggle_tool_panel)
-        panels_menu.addAction(self.tool_panel_action)
+        self.effects_panel_action = QAction("Efectos Android", self)
+        self.effects_panel_action.setCheckable(True)
+        self.effects_panel_action.setChecked(False)
+        self.effects_panel_action.triggered.connect(self.toggle_effects_panel)
+        panels_menu.addAction(self.effects_panel_action)
         
         self.layers_panel_action = QAction("Panel de Capas", self)
         self.layers_panel_action.setCheckable(True)
@@ -3520,7 +4000,40 @@ class IllustratorWindow(QMainWindow):
     def show_replace_dialog(self, editor):
         """Diálogo de reemplazar"""
         QMessageBox.information(self, "Reemplazar", "Funcionalidad de reemplazar en desarrollo")
+    def toggle_illustrator_tools_panel(self):
+        """Alternar visibilidad del panel de herramientas Illustrator CORREGIDO"""
+        if self.illustrator_tools_panel.isVisible():
+            self.illustrator_tools_panel.setVisible(False)
+            self.illustrator_tools_action.setChecked(False)
+        else:
+            self.illustrator_tools_panel.setVisible(True)
+            self.illustrator_tools_panel.raise_()
+            self.illustrator_tools_panel.activateWindow()
+            self.illustrator_tools_action.setChecked(True)
 
+    def toggle_effects_panel(self):
+        """Alternar visibilidad del panel de efectos CORREGIDO"""
+        if self.effects_panel.isVisible():
+            self.effects_panel.setVisible(False)
+            self.effects_panel_action.setChecked(False)
+        else:
+            self.effects_panel.setVisible(True)
+            self.effects_panel.raise_()
+            self.effects_panel.activateWindow()
+            self.effects_panel_action.setChecked(True)
+
+    # Actualizar los presets de workspace para incluir los nuevos paneles
+    def create_workspace_presets(self):
+        self.workspace_presets = {
+            "Default": WorkspacePreset("Default", "left", 
+                                    ["IllustratorTools", "Layers", "AI Assistant", "Effects"]),
+            "Design": WorkspacePreset("Design", "left", 
+                                    ["IllustratorTools", "Effects", "Color", "Layers"]),
+            "Development": WorkspacePreset("Development", "right", 
+                                        ["IllustratorTools", "AI Assistant", "File Explorer"]),
+            "Minimal": WorkspacePreset("Minimal", "left", 
+                                    ["File Explorer", "AI Assistant"])
+        }
     def toggle_tool_panel(self):
         self.tool_panel.setVisible(self.tool_panel_action.isChecked())
 
