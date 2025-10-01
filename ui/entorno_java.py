@@ -2602,7 +2602,7 @@ class AdvancedIllustratorCanvas(QGraphicsView):
         
         # Zoom
         self.zoom_level = 1.0
-        self.setup_grid()
+        #self.setup_grid()
         
     def setup_grid(self):
         """Configura la cuadrícula de diseño"""
@@ -3121,29 +3121,99 @@ class IllustratorWindow(QMainWindow):
         self.setWindowTitle(f"Creators Studio - {project_name} [{project_language}]")
         self.setGeometry(100, 100, 1400, 800)
         
-        
         self.code_generator = CodeGenerator(project_name)
-        
-       
         self.open_files = {}
-        self.open_windows = {} 
+        self.open_windows = {}
         self.current_editor = None
         
-
-        self.create_illustrator_tools_panel()  
-        self.create_effects_panel() 
+        # Inicializar todos los actions con objetos QAction válidos
+        self.tool_panel_action = QAction("Panel de Herramientas", self)
+        self.tool_panel_action.setCheckable(True)
+        self.tool_panel_action.setChecked(False)
+        
+        self.layers_panel_action = QAction("Panel de Capas", self)
+        self.layers_panel_action.setCheckable(True)
+        self.layers_panel_action.setChecked(False)
+        
+        self.color_panel_action = QAction("Panel de Colores", self)
+        self.color_panel_action.setCheckable(True)
+        self.color_panel_action.setChecked(False)
+        
+        self.ai_panel_action = QAction("Panel de IA", self)
+        self.ai_panel_action.setCheckable(True)
+        self.ai_panel_action.setChecked(True)
+        
+        self.explorer_panel_action = QAction("Explorador de Archivos", self)
+        self.explorer_panel_action.setCheckable(True)
+        self.explorer_panel_action.setChecked(True)
+        
+        self.illustrator_tools_action = QAction("Herramientas Illustrator", self)
+        self.illustrator_tools_action.setCheckable(True)
+        self.illustrator_tools_action.setChecked(False)
+        
+        self.effects_panel_action = QAction("Efectos Android", self)
+        self.effects_panel_action.setCheckable(True)
+        self.effects_panel_action.setChecked(False)
+        
+        # Crear paneles primero
+        self.create_illustrator_tools_panel()
+        self.create_effects_panel()
         
         self.setup_workspace()
         self.create_workspace_presets()
         self.setup_ui()
         self.setup_shortcuts()
 
-        self.setup_enhanced_docks()
-        self.setup_hoja_ai()
+        # CONFIGURACIÓN INICIAL DE LAYOUT
+        self.setup_initial_layout()
         
-        self.create_menu_bar()
+        self.create_menu_bar()  # Esto ahora solo agregará los actions al menú
         self.setup_language_specific_features()
         self.setup_context_menu()
+    def setup_initial_layout(self):
+        """Configura el layout inicial por defecto al abrir un proyecto"""
+        
+        # 1. PRIMERO LIMPIAR DOCK EXISTENTES
+        existing_docks = self.findChildren(QDockWidget)
+        for dock in existing_docks:
+            self.removeDockWidget(dock)
+        
+        # 2. CONFIGURAR HOJA_AI COMO CENTRAL
+        self.setup_hoja_ai()
+        
+        # 3. CONFIGURAR PANELES INICIALES
+        # Explorador de archivos a la IZQUIERDA
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.file_explorer_panel)
+        self.file_explorer_panel.setVisible(True)
+        
+        # Chat IA a la DERECHA  
+        self.addDockWidget(Qt.RightDockWidgetArea, self.ai_panel)
+        self.ai_panel.setVisible(True)
+        
+        # 4. OCULTAR LOS DEMÁS PANELES INICIALMENTE
+        self.tool_panel.setVisible(False)
+        self.layers_panel.setVisible(False)
+        self.color_panel.setVisible(False)
+        self.brushes_panel.setVisible(False)
+        self.character_panel.setVisible(False)
+        self.paragraph_panel.setVisible(False)
+        self.illustrator_tools_panel.setVisible(False)
+        self.effects_panel.setVisible(False)
+        
+        # 5. ACTUALIZAR ESTADO DE LOS BOTONES DEL MENÚ
+        self.explorer_panel_action.setChecked(True)
+        self.ai_panel_action.setChecked(True)
+        self.tool_panel_action.setChecked(False)
+        self.layers_panel_action.setChecked(False)
+        self.color_panel_action.setChecked(False)
+        self.illustrator_tools_action.setChecked(False)
+        self.effects_panel_action.setChecked(False)
+        
+        # 6. CONFIGURAR TAMAÑOS INICIALES
+        self.resizeDocks([self.file_explorer_panel], [300], Qt.Horizontal)
+        self.resizeDocks([self.ai_panel], [350], Qt.Horizontal)
+        
+        print("✅ Layout inicial configurado: Explorador(←), Hoja_AI(🎯), Chat_IA(→)")
     def setup_hoja_ai(self):
         """Configura el panel Hoja_AI como centro de la interfaz"""
         # Remover el widget inicial del emulador
@@ -3608,15 +3678,33 @@ class IllustratorWindow(QMainWindow):
         self.create_ai_panel()
         self.create_file_explorer_panel()
         
-        self.create_menu_bar()
+        self.create_menu_bar()  # Esto crea los actions
 
-        self.setup_enhanced_docks()
-
-        self.ai_panel.setVisible(True)
-        self.file_explorer_panel.setVisible(True)
-
-        self.ai_panel_action.setChecked(True)
-        self.explorer_panel_action.setChecked(True)
+        # Inicializar los actions si aún no existen
+        if not hasattr(self, 'tool_panel_action'):
+            self.tool_panel_action = QAction("Panel de Herramientas", self)
+            self.tool_panel_action.setCheckable(True)
+            self.tool_panel_action.setChecked(False)
+        
+        if not hasattr(self, 'layers_panel_action'):
+            self.layers_panel_action = QAction("Panel de Capas", self)
+            self.layers_panel_action.setCheckable(True)
+            self.layers_panel_action.setChecked(False)
+        
+        if not hasattr(self, 'color_panel_action'):
+            self.color_panel_action = QAction("Panel de Colores", self)
+            self.color_panel_action.setCheckable(True)
+            self.color_panel_action.setChecked(False)
+        
+        if not hasattr(self, 'ai_panel_action'):
+            self.ai_panel_action = QAction("Panel de IA", self)
+            self.ai_panel_action.setCheckable(True)
+            self.ai_panel_action.setChecked(True)
+        
+        if not hasattr(self, 'explorer_panel_action'):
+            self.explorer_panel_action = QAction("Explorador de Archivos", self)
+            self.explorer_panel_action.setCheckable(True)
+            self.explorer_panel_action.setChecked(True)
 
         self.statusBar().showMessage("Ready | Zoom: 100%")
 
@@ -4062,7 +4150,6 @@ class IllustratorWindow(QMainWindow):
         edit_menu.addAction(replace_action)
 
         view_menu = menubar.addMenu("Ver")
-
         panels_menu = view_menu.addMenu("Paneles")
      
 
@@ -4092,13 +4179,13 @@ class IllustratorWindow(QMainWindow):
         
         self.ai_panel_action = QAction("Panel de IA", self)
         self.ai_panel_action.setCheckable(True)
-        self.ai_panel_action.setChecked(False)
+        self.ai_panel_action.setChecked(True)  # INICIALMENTE ACTIVADO
         self.ai_panel_action.triggered.connect(self.toggle_ai_panel)
         panels_menu.addAction(self.ai_panel_action)
-        
+            
         self.explorer_panel_action = QAction("Explorador de Archivos", self)
         self.explorer_panel_action.setCheckable(True)
-        self.explorer_panel_action.setChecked(False)
+        self.explorer_panel_action.setChecked(True)  # INICIALMENTE ACTIVADO
         self.explorer_panel_action.triggered.connect(self.toggle_explorer_panel)
         panels_menu.addAction(self.explorer_panel_action)
         
@@ -4309,13 +4396,23 @@ class IllustratorWindow(QMainWindow):
 
     def toggle_color_panel(self):
         self.color_panel.setVisible(self.color_panel_action.isChecked())
+    def toggle_explorer_panel(self):
+        """Alternar visibilidad del explorador de archivos"""
+        if self.file_explorer_panel.isVisible():
+            self.file_explorer_panel.setVisible(False)
+            self.explorer_panel_action.setChecked(False)
+        else:
+            self.file_explorer_panel.setVisible(True)
+            self.explorer_panel_action.setChecked(True)
 
     def toggle_ai_panel(self):
-        self.ai_panel.setVisible(self.ai_panel_action.isChecked())
-
-    def toggle_explorer_panel(self):
-        self.file_explorer_panel.setVisible(self.explorer_panel_action.isChecked())
-
+        """Alternar visibilidad del panel de IA"""
+        if self.ai_panel.isVisible():
+            self.ai_panel.setVisible(False)
+            self.ai_panel_action.setChecked(False)
+        else:
+            self.ai_panel.setVisible(True)
+            self.ai_panel_action.setChecked(True)
     def zoom_in(self):
         """Acercar zoom"""
         self.statusBar().showMessage("Zoom: Acercar")
