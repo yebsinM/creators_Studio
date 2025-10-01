@@ -3,10 +3,13 @@ import subprocess
 import platform
 from dotenv import load_dotenv
 import requests
+import shutil
 import threading
 import sys
 import math 
 import re
+import psutil
+from datetime import datetime
 import uuid
 import json
 from pathlib import Path 
@@ -19,19 +22,25 @@ from PySide6.QtWidgets import (
     QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsItem, QSlider,
     QFileDialog, QScrollArea, QGroupBox, QRadioButton, QCheckBox,
     QSizePolicy, QTabWidget, QTextEdit, QDialog,
-    QPlainTextEdit, QListWidgetItem, QStyledItemDelegate ,QToolBox,QScrollArea,QButtonGroup,QGridLayout
+    QPlainTextEdit, QListWidgetItem, QStyledItemDelegate, QToolBox, 
+    QScrollArea, QButtonGroup, QGridLayout, QToolBar, QStatusBar,  
+    QGraphicsPathItem, QGraphicsLineItem, QGraphicsItemGroup
 )
 
+from PySide6.QtSvg import QSvgGenerator
 
 from PySide6.QtGui import (
     QIcon, QAction, QCursor, QColor, QBrush, QTextCursor, QFont,
-    QPen, QPainter, QTextFormat, QSyntaxHighlighter, QTextCharFormat, QPalette,
-    QShortcut, QKeySequence, QPixmap, QPainter ,QLinearGradient, QRadialGradient
+    QPen, QPainter, QTextFormat, QSyntaxHighlighter, QTextCharFormat, 
+    QPalette, QShortcut, QKeySequence, QPixmap, QPainter, 
+    QLinearGradient, QRadialGradient, QMouseEvent
 )
 from PySide6.QtCore import (
     Qt, QSize, QPoint, Signal, QDir, QRectF, QSettings, QThread, 
-    Signal as pyqtSignal, QEvent, QTimer, QRect, QRegularExpression, QDateTime
+    Signal as pyqtSignal, QEvent, QTimer, QRect, QRegularExpression, QDateTime, QPointF
 )
+
+
 class VSCodeHighlighter(QSyntaxHighlighter):
     """Sistema de resaltado similar a Visual Studio Code para TODOS los lenguajes"""
     
@@ -1279,132 +1288,7 @@ dependencies {
         with open(os.path.join(directory, "app", "build.gradle"), "w") as f:
             f.write(gradle)
 
-class DesignCanvas(QGraphicsView):
-    """Canvas personalizado para diseño de interfaces Android"""
-    
-    elementCreated = Signal(UIElement)
-    elementSelected = Signal(UIElement)
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.scene = QGraphicsScene()
-        self.setScene(self.scene)
-        self.setRenderHint(QPainter.Antialiasing)
-        
-        self.currentTool = "select"
-        self.currentElement = None
-        self.elements = []
-        self.selectedElement = None
-        
 
-        self.setStyleSheet("background-color: #2C2C2C; border: none;")
-        
-    def setTool(self, tool):
-        self.currentTool = tool
-        if tool == "select":
-            self.setDragMode(QGraphicsView.RubberBandDrag)
-        else:
-            self.setDragMode(QGraphicsView.NoDrag)
-    
-    def mousePressEvent(self, event):
-        if self.currentTool != "select":
-         
-            pos = self.mapToScene(event.pos())
-            self.createElement(self.currentTool, pos.x(), pos.y())
-        else:
-            super().mousePressEvent(event)
-    
-    def createElement(self, element_type, x, y):
-      
-        if element_type == "rectangle":
-            element = UIElement("rectangle", x, y, 100, 60)
-            graphicsItem = QGraphicsRectItem(0, 0, 100, 60)
-            graphicsItem.setBrush(QBrush(QColor(element.properties["backgroundColor"])))
-            graphicsItem.setPen(QPen(Qt.black))
-            
-        elif element_type == "text":
-            element = UIElement("text", x, y, 120, 40)
-            element.setProperty("text", "Texto de ejemplo")
-            graphicsItem = QGraphicsTextItem("Texto de ejemplo")
-            graphicsItem.setDefaultTextColor(QColor(element.properties["textColor"]))
-            
-        elif element_type == "button":
-            element = UIElement("button", x, y, 120, 50)
-            element.setProperty("text", "Botón")
-            element.setProperty("backgroundColor", "#6200EE")
-            element.setProperty("textColor", "#FFFFFF")
-            graphicsItem = QGraphicsRectItem(0, 0, 120, 50)
-            graphicsItem.setBrush(QBrush(QColor(element.properties["backgroundColor"])))
-            graphicsItem.setPen(QPen(Qt.black))
-           
-            textItem = QGraphicsTextItem("Botón")
-            textItem.setDefaultTextColor(QColor(element.properties["textColor"]))
-            textItem.setPos(30, 15)
-            
-        elif element_type == "input":
-            element = UIElement("input", x, y, 200, 60)
-            element.setProperty("hint", "Escribe aquí...")
-            graphicsItem = QGraphicsRectItem(0, 0, 200, 60)
-            graphicsItem.setBrush(QBrush(Qt.white))
-            graphicsItem.setPen(QPen(Qt.gray))
-        
-            hintItem = QGraphicsTextItem("Escribe aquí...")
-            hintItem.setDefaultTextColor(QColor("#80000000"))
-            hintItem.setPos(10, 20)
-            
-        else:
-            return
-        
-     
-        graphicsItem.setPos(x, y)
-        graphicsItem.setFlag(QGraphicsItem.ItemIsMovable)
-        graphicsItem.setFlag(QGraphicsItem.ItemIsSelectable)
-        graphicsItem.setData(0, element.id)  
-  
-        self.scene.addItem(graphicsItem)
-        if element_type == "button":
-            self.scene.addItem(textItem)
-        elif element_type == "input":
-            self.scene.addItem(hintItem)
-        
- 
-        element.graphicsItem = graphicsItem
-        self.elements.append(element)
-        self.elementCreated.emit(element)
-        
-  
-        self.selectElement(element)
-        
-    def selectElement(self, element):
-
-        if self.selectedElement and self.selectedElement.graphicsItem:
-            self.selectedElement.graphicsItem.setSelected(False)
-
-        self.selectedElement = element
-        if element and element.graphicsItem:
-            element.graphicsItem.setSelected(True)
-            self.elementSelected.emit(element)
-  
-            if self.parent() and hasattr(self.parent(), 'properties_panel'):
-                self.parent().properties_panel.setVisible(True)
-                self.update_properties_panel(element)
-
-    def update_properties_panel(self, element):
-        if not self.parent() or not hasattr(self.parent(), 'properties_panel'):
-            return
-
-        if hasattr(self.parent(), 'text_size_combo') and element.getProperty("textSize"):
-            text_size = element.getProperty("textSize")
-            self.parent().text_size_combo.setCurrentText(text_size)
-        
-        if hasattr(self.parent(), 'corner_radius_slider') and element.getProperty("cornerRadius"):
-            radius_str = element.getProperty("cornerRadius")
-            if radius_str.endswith("dp"):
-                try:
-                    radius = int(radius_str[:-2])
-                    self.parent().corner_radius_slider.setValue(radius)
-                except ValueError:
-                    pass
 
 class LineNumberArea(QWidget):
     def __init__(self, editor):
@@ -1551,44 +1435,74 @@ class EnhancedCodeEditor(QPlainTextEdit):
         self.highlighter = HighlighterFactory.create_highlighter(file_path, self.document(), self.theme)
 
 class EnhancedAIChatPanel(QDockWidget):
-    """Panel de IA mejorado con acceso total al sistema de archivos y ejecución de código"""
+    """Panel de IA con control TOTAL del sistema de archivos"""
     
     def __init__(self, code_generator, parent=None):
-        super().__init__("AI Assistant - Programación Total", parent)
+        super().__init__("AI Assistant - Control Total del Sistema", parent)
         self.code_generator = code_generator
         self.parent_window = parent
         self.conversation_history = []
-        self.current_provider = None
-        self.available_providers = []
-        self.current_worker = None
-        self.project_path = getattr(parent, 'project_path', os.getcwd())
+        self.current_provider = "deepseek"
+        self.current_directory = Path.home()  # Directorio actual
         self.setupUI()
         self.load_api_keys()
-        self.detect_available_providers()
+        
+        # Mensaje de bienvenida con capacidades
+        self.add_system_message("🚀 **SISTEMA DE CONTROL TOTAL INICIADO**")
+        self.add_system_message(f"📂 **Directorio actual:** {self.current_directory}")
+        self.add_system_message("**💡 Puedo realizar estas acciones:**")
+        self.add_system_message("• 📁 Navegar por TODO el sistema de archivos")
+        self.add_system_message("• 📄 Crear/editar/eliminar cualquier archivo")
+        self.add_system_message("• 🗂️ Gestionar carpetas y directorios")
+        self.add_system_message("• 🔍 Buscar y reemplazar en archivos")
+        self.add_system_message("• ⚡ Ejecutar comandos del sistema")
+        self.add_system_message("• 📊 Analizar espacio y estadísticas")
+        self.add_system_message("• 🔄 Operaciones por lotes/múltiples archivos")
 
     def setupUI(self):
         chat_widget = QWidget()
         layout = QVBoxLayout(chat_widget)
         
-        # Panel de proveedores
-        provider_layout = QHBoxLayout()
-        provider_layout.addWidget(QLabel("Proveedor IA:"))
+        # Barra de navegación
+        nav_layout = QHBoxLayout()
         
-        self.provider_combo = QComboBox()
-        self.provider_combo.currentTextChanged.connect(self.change_ai_provider)
-        provider_layout.addWidget(self.provider_combo)
+        self.back_btn = QPushButton("◀️")
+        self.back_btn.setToolTip("Directorio anterior")
+        self.back_btn.clicked.connect(self.navigate_back)
+        self.back_btn.setFixedSize(30, 30)
         
-        self.config_btn = QPushButton("Configurar API")
-        self.config_btn.clicked.connect(self.show_api_config_dialog)
-        provider_layout.addWidget(self.config_btn)
+        self.forward_btn = QPushButton("▶️")
+        self.forward_btn.setToolTip("Directorio siguiente")
+        self.forward_btn.clicked.connect(self.navigate_forward)
+        self.forward_btn.setFixedSize(30, 30)
         
-        provider_layout.addStretch()
-        layout.addLayout(provider_layout)
+        self.home_btn = QPushButton("🏠")
+        self.home_btn.setToolTip("Directorio home")
+        self.home_btn.clicked.connect(self.go_home)
+        self.home_btn.setFixedSize(30, 30)
         
-        # Historial de chat mejorado
+        self.up_btn = QPushButton("📁")
+        self.up_btn.setToolTip("Directorio padre")
+        self.up_btn.clicked.connect(self.go_up)
+        self.up_btn.setFixedSize(30, 30)
+        
+        self.path_label = QLabel(str(self.current_directory))
+        self.path_label.setStyleSheet("background-color: #2d2d30; padding: 5px; border-radius: 3px;")
+        self.path_label.setWordWrap(True)
+        
+        nav_layout.addWidget(self.back_btn)
+        nav_layout.addWidget(self.forward_btn)
+        nav_layout.addWidget(self.home_btn)
+        nav_layout.addWidget(self.up_btn)
+        nav_layout.addWidget(self.path_label)
+        nav_layout.addStretch()
+        
+        layout.addLayout(nav_layout)
+        
+        # Historial de chat
         self.chat_history = QTextEdit()
         self.chat_history.setReadOnly(True)
-        self.chat_history.setPlaceholderText("Conversa con la IA sobre programación, archivos, ejecución de código...")
+        self.chat_history.setPlaceholderText("Escribe comandos como: 'crea un archivo.txt', 'lista los archivos', 'cambia a /ruta'...")
         self.chat_history.setStyleSheet("""
             QTextEdit {
                 background-color: #1e1e1e;
@@ -1600,10 +1514,10 @@ class EnhancedAIChatPanel(QDockWidget):
         """)
         layout.addWidget(self.chat_history)
         
-        # Panel de entrada mejorado
+        # Panel de entrada
         input_layout = QHBoxLayout()
         self.user_input = QLineEdit()
-        self.user_input.setPlaceholderText("Escribe tu mensaje, pide crear/modificar archivos, ejecutar código...")
+        self.user_input.setPlaceholderText("Escribe tu comando (ej: 'crea archivo.txt con contenido', 'muestra archivos', 'edita config.ini')...")
         self.user_input.returnPressed.connect(self.send_message)
         input_layout.addWidget(self.user_input)
         
@@ -1611,854 +1525,564 @@ class EnhancedAIChatPanel(QDockWidget):
         self.send_button.clicked.connect(self.send_message)
         input_layout.addWidget(self.send_button)
         
-        # Botones de acciones rápidas
+        layout.addLayout(input_layout)
+        
+        # Botones de acción rápida
         quick_actions_layout = QHBoxLayout()
         
-        self.file_actions_btn = QPushButton("📁 Archivos")
-        self.file_actions_btn.clicked.connect(self.show_file_actions_menu)
+        actions = [
+            ("📊", "Estadísticas", self.show_system_stats),
+            ("🔍", "Buscar", self.quick_search),
+            ("📋", "Listar", self.list_current_directory),
+            ("⚡", "Terminal", self.open_terminal),
+            ("🛠️", "Herramientas", self.show_tools_menu)
+        ]
         
-        self.code_actions_btn = QPushButton("⚡ Ejecutar")
-        self.code_actions_btn.clicked.connect(self.show_code_actions_menu)
+        for icon, text, action in actions:
+            btn = QPushButton(f"{icon} {text}")
+            btn.setFixedHeight(30)
+            btn.clicked.connect(action)
+            quick_actions_layout.addWidget(btn)
         
-        self.project_actions_btn = QPushButton("📦 Proyecto")
-        self.project_actions_btn.clicked.connect(self.show_project_actions_menu)
-        
-        quick_actions_layout.addWidget(self.file_actions_btn)
-        quick_actions_layout.addWidget(self.code_actions_btn)
-        quick_actions_layout.addWidget(self.project_actions_btn)
-        quick_actions_layout.addStretch()
-        
-        layout.addLayout(input_layout)
         layout.addLayout(quick_actions_layout)
         
         chat_widget.setLayout(layout)
         self.setWidget(chat_widget)
-        
-        # Mensaje de bienvenida mejorado
-        self.add_system_message("🚀 **Asistente de Programación Total Iniciado**")
-        self.add_system_message("**Capacidades disponibles:**")
-        self.add_system_message("• 📁 Gestión completa de archivos (crear, modificar, eliminar)")
-        self.add_system_message("• ⚡ Ejecución de código (Java, Kotlin, Python, etc.)")
-        self.add_system_message("• 🔍 Análisis y búsqueda en proyectos")
-        self.add_system_message("• 📊 Generación de código inteligente")
-        self.add_system_message("• 🛠️ Debugging y optimización")
+
+    # ===== NAVEGACIÓN DEL SISTEMA =====
     
-    def change_ai_provider(self, provider_name):
-        """Cambia el proveedor de IA seleccionado"""
-        self.current_provider = provider_name
+    def navigate_back(self):
+        """Navega al directorio anterior"""
+        if hasattr(self, 'navigation_history') and self.navigation_history:
+            prev_dir = self.navigation_history.pop()
+            self.current_directory = prev_dir
+            self.update_path_display()
+            self.list_current_directory()
 
-    def show_api_config_dialog(self):
-        """Muestra el diálogo de configuración de API (pendiente de implementar)"""
-        QMessageBox.information(self, "Configurar API", "Funcionalidad de configuración de API en desarrollo.")    
+    def navigate_forward(self):
+        """Navega al directorio siguiente"""
+        # Implementar si es necesario
+        pass
+
+    def go_home(self):
+        """Va al directorio home"""
+        self.current_directory = Path.home()
+        self.update_path_display()
+        self.list_current_directory()
+
+    def go_up(self):
+        """Sube al directorio padre"""
+        if self.current_directory.parent != self.current_directory:
+            self.current_directory = self.current_directory.parent
+            self.update_path_display()
+            self.list_current_directory()
+
+    def update_path_display(self):
+        """Actualiza la visualización de la ruta"""
+        self.path_label.setText(str(self.current_directory))
+
+    # ===== COMANDOS PRINCIPALES =====
     
-    def show_file_actions_menu(self):
-        """Menú de acciones rápidas para archivos"""
-        menu = QMenu(self)
-        
-        actions = [
-            ("📄 Crear Archivo", self.quick_create_file),
-            ("📁 Crear Carpeta", self.quick_create_folder),
-            ("🔍 Listar Archivos", self.list_project_files),
-            ("📊 Analizar Proyecto", self.analyze_project),
-            ("📝 Editar Archivo", self.quick_edit_file),
-            ("🗑️ Eliminar Archivo", self.quick_delete_file),
-        ]
-        
-        for text, action in actions:
-            act = QAction(text, self)
-            act.triggered.connect(action)
-            menu.addAction(act)
-        
-        menu.exec_(self.file_actions_btn.mapToGlobal(QPoint(0, self.file_actions_btn.height())))
-
-    def show_code_actions_menu(self):
-        """Menú de acciones rápidas para código"""
-        menu = QMenu(self)
-        
-        actions = [
-            ("▶️ Ejecutar Proyecto", self.run_project),
-            ("🔨 Compilar", self.compile_project),
-            ("🐛 Debug", self.debug_project),
-            ("📋 Analizar Sintaxis", self.check_syntax),
-            ("⚡ Ejecutar Snippet", self.run_code_snippet),
-        ]
-        
-        for text, action in actions:
-            act = QAction(text, self)
-            act.triggered.connect(action)
-            menu.addAction(act)
-        
-        menu.exec_(self.code_actions_btn.mapToGlobal(QPoint(0, self.code_actions_btn.height())))
-
-    def show_project_actions_menu(self):
-        """Menú de acciones rápidas para proyectos"""
-        menu = QMenu(self)
-        
-        actions = [
-            ("📊 Estadísticas", self.project_stats),
-            ("🔍 Buscar en Código", self.search_in_code),
-            ("📋 Dependencias", self.show_dependencies),
-            ("🔄 Refactorizar", self.refactor_project),
-            ("📦 Exportar", self.export_project_quick),
-        ]
-        
-        for text, action in actions:
-            act = QAction(text, self)
-            act.triggered.connect(action)
-            menu.addAction(act)
-        
-        menu.exec_(self.project_actions_btn.mapToGlobal(QPoint(0, self.project_actions_btn.height())))
-
-    # ===== FUNCIONES DE GESTIÓN DE ARCHIVOS =====
-    
-    def list_project_files(self):
-        """Lista todos los archivos del proyecto"""
-        try:
-            files_info = []
-            for root, dirs, files in os.walk(self.project_path):
-                level = root.replace(self.project_path, '').count(os.sep)
-                indent = ' ' * 2 * level
-                files_info.append(f"{indent}📁 {os.path.basename(root)}/")
-                subindent = ' ' * 2 * (level + 1)
-                for file in files:
-                    size = os.path.getsize(os.path.join(root, file))
-                    files_info.append(f"{subindent}📄 {file} ({size} bytes)")
-            
-            file_tree = "\n".join(files_info[:50])  # Limitar a 50 elementos
-            self.add_system_message(f"**Estructura del proyecto:**\n```\n{file_tree}\n```")
-            
-            # Estadísticas
-            total_files = sum([len(files) for r, d, files in os.walk(self.project_path)])
-            total_size = sum([os.path.getsize(os.path.join(r, f)) 
-                            for r, d, files in os.walk(self.project_path) 
-                            for f in files])
-            
-            self.add_system_message(f"**Estadísticas:** {total_files} archivos, {total_size} bytes totales")
-            
-        except Exception as e:
-            self.add_error_message(f"Error al listar archivos: {str(e)}")
-
-    def quick_create_file(self):
-        """Crea un archivo rápidamente"""
-        file_name, ok = QInputDialog.getText(self, "Crear Archivo", "Nombre del archivo:")
-        if ok and file_name:
-            file_path = os.path.join(self.project_path, file_name)
-            try:
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write("")
-                self.add_success_message(f"✅ Archivo '{file_name}' creado exitosamente")
-                
-                # Abrir el archivo en el editor si está disponible
-                if hasattr(self.parent_window, 'open_file_in_tab'):
-                    self.parent_window.open_file_in_tab(file_path)
-                    
-            except Exception as e:
-                self.add_error_message(f"❌ Error al crear archivo: {str(e)}")
-
-    def quick_create_folder(self):
-        """Crea una carpeta rápidamente"""
-        folder_name, ok = QInputDialog.getText(self, "Crear Carpeta", "Nombre de la carpeta:")
-        if ok and folder_name:
-            folder_path = os.path.join(self.project_path, folder_name)
-            try:
-                os.makedirs(folder_path, exist_ok=True)
-                self.add_success_message(f"✅ Carpeta '{folder_name}' creada exitosamente")
-            except Exception as e:
-                self.add_error_message(f"❌ Error al crear carpeta: {str(e)}")
-
-    def quick_edit_file(self):
-        """Edita un archivo existente"""
-        files = []
-        for root, dirs, filenames in os.walk(self.project_path):
-            for file in filenames:
-                files.append(os.path.join(root, file))
-        
-        if not files:
-            self.add_warning_message("No hay archivos en el proyecto")
+    def send_message(self):
+        """Procesa los comandos del usuario"""
+        user_text = self.user_input.text().strip()
+        if not user_text:
             return
             
-        file_path, ok = QInputDialog.getItem(self, "Editar Archivo", "Selecciona un archivo:", 
-                                           files, 0, False)
-        if ok and file_path:
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                
-                # Mostrar diálogo de edición
-                self.show_file_editor(file_path, content)
-                
-            except Exception as e:
-                self.add_error_message(f"❌ Error al leer archivo: {str(e)}")
+        self._add_formatted_message("👤 **Tú**", user_text, "#1976D2")
+        self.user_input.clear()
+        
+        # Procesar el comando
+        self.process_command(user_text)
 
-    def show_file_editor(self, file_path, content):
-        """Muestra un editor para modificar archivos"""
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f"Editando: {os.path.basename(file_path)}")
-        dialog.setMinimumSize(600, 400)
+    def process_command(self, command):
+        """Procesa comandos naturales del usuario"""
+        lower_cmd = command.lower()
         
-        layout = QVBoxLayout(dialog)
+        try:
+            # NAVEGACIÓN
+            if any(word in lower_cmd for word in ['ve a', 'cambia a', 'entra a', 'cd ']):
+                self.handle_navigation(command)
+            
+            # CREACIÓN DE ARCHIVOS
+            elif any(word in lower_cmd for word in ['crea', 'nuevo', 'make', 'create']):
+                self.handle_file_creation(command)
+            
+            # LISTAR CONTENIDO
+            elif any(word in lower_cmd for word in ['lista', 'muestra', 'ls', 'dir', 'contenido']):
+                self.list_current_directory()
+            
+            # EDITAR ARCHIVOS
+            elif any(word in lower_cmd for word in ['edita', 'modifica', 'edit', 'change']):
+                self.handle_file_edit(command)
+            
+            # ELIMINAR
+            elif any(word in lower_cmd for word in ['elimina', 'borra', 'delete', 'remove']):
+                self.handle_deletion(command)
+            
+            # BUSCAR
+            elif any(word in lower_cmd for word in ['busca', 'find', 'search']):
+                self.handle_search(command)
+            
+            # COPIAR/MOVER
+            elif any(word in lower_cmd for word in ['copia', 'mueve', 'copy', 'move']):
+                self.handle_copy_move(command)
+            
+            # INFORMACIÓN DEL SISTEMA
+            elif any(word in lower_cmd for word in ['estadísticas', 'espacio', 'info', 'stats']):
+                self.show_system_stats()
+            
+            # EJECUTAR COMANDOS
+            elif lower_cmd.startswith('ejecuta ') or lower_cmd.startswith('run '):
+                self.execute_system_command(command)
+            
+            else:
+                # Si no reconoce el comando, usar IA
+                self.process_with_ai(command)
+                
+        except Exception as e:
+            self.add_error_message(f"❌ Error procesando comando: {str(e)}")
+
+    # ===== MANEJADORES DE COMANDOS =====
+    
+    def handle_navigation(self, command):
+        """Maneja comandos de navegación"""
+        parts = command.split()
+        path_str = None
         
-        # Editor de código
-        editor = QPlainTextEdit()
-        editor.setPlainText(content)
-        editor.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #1e1e1e;
-                color: #d4d4d4;
-                font-family: 'Consolas', monospace;
-                font-size: 12px;
-            }
-        """)
-        layout.addWidget(editor)
+        # Extraer la ruta del comando
+        for i, part in enumerate(parts):
+            if part in ['a', 'to', 'en'] and i + 1 < len(parts):
+                path_str = ' '.join(parts[i+1:])
+                break
         
-        # Botones
-        button_layout = QHBoxLayout()
-        save_btn = QPushButton("💾 Guardar")
-        save_btn.clicked.connect(lambda: self.save_edited_file(file_path, editor.toPlainText(), dialog))
-        cancel_btn = QPushButton("❌ Cancelar")
-        cancel_btn.clicked.connect(dialog.reject)
+        if not path_str:
+            path_str = parts[-1]  # Última palabra como ruta
         
-        button_layout.addWidget(save_btn)
-        button_layout.addWidget(cancel_btn)
-        layout.addLayout(button_layout)
+        # Expandir rutas especiales
+        if path_str == "~" or path_str == "home":
+            path_str = str(Path.home())
+        elif path_str == "..":
+            path_str = str(self.current_directory.parent)
         
-        dialog.exec_()
+        target_path = Path(path_str)
+        
+        # Si es relativa, hacerla absoluta
+        if not target_path.is_absolute():
+            target_path = self.current_directory / target_path
+        
+        if target_path.exists() and target_path.is_dir():
+            self.current_directory = target_path
+            self.update_path_display()
+            self.list_current_directory()
+            self.add_success_message(f"📂 Directorio cambiado a: {target_path}")
+        else:
+            self.add_error_message(f"❌ La ruta no existe o no es un directorio: {target_path}")
+
+    def handle_file_creation(self, command):
+        """Maneja creación de archivos y carpetas"""
+        lower_cmd = command.lower()
+        
+        # CREAR CARPETA
+        if any(word in lower_cmd for word in ['carpeta', 'folder', 'directorio']):
+            folder_name = self.extract_filename(command, ['carpeta', 'folder'])
+            if folder_name:
+                self.create_folder(folder_name)
+        
+        # CREAR ARCHIVO
+        elif any(word in lower_cmd for word in ['archivo', 'file']):
+            file_name = self.extract_filename(command, ['archivo', 'file'])
+            content = self.extract_content(command)
+            if file_name:
+                self.create_file(file_name, content)
+
+    def extract_filename(self, command, keywords):
+        """Extrae el nombre de archivo/carpeta del comando"""
+        for keyword in keywords:
+            if keyword in command.lower():
+                # Buscar después de la palabra clave
+                start_idx = command.lower().index(keyword) + len(keyword)
+                remaining = command[start_idx:].strip()
+                # Tomar la primera palabra como nombre
+                filename = remaining.split()[0] if remaining.split() else None
+                return filename
+        return None
+
+    def extract_content(self, command):
+        """Extrae contenido para archivos del comando"""
+        if 'contenido' in command.lower() or 'con' in command.lower():
+            # Buscar después de "contenido" o "con"
+            for separator in ['contenido', 'con', 'that says']:
+                if separator in command.lower():
+                    start_idx = command.lower().index(separator) + len(separator)
+                    return command[start_idx:].strip()
+        return ""
+
+    def create_folder(self, folder_name):
+        """Crea una nueva carpeta"""
+        try:
+            folder_path = self.current_directory / folder_name
+            folder_path.mkdir(exist_ok=True)
+            self.add_success_message(f"✅ Carpeta creada: {folder_path}")
+            self.list_current_directory()
+        except Exception as e:
+            self.add_error_message(f"❌ Error creando carpeta: {str(e)}")
+
+    def create_file(self, file_name, content=""):
+        """Crea un nuevo archivo"""
+        try:
+            file_path = self.current_directory / file_name
+            
+            # Asegurar extensión si es necesario
+            if '.' not in file_name:
+                file_path = file_path.with_suffix('.txt')
+            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            self.add_success_message(f"✅ Archivo creado: {file_path}")
+            if content:
+                self.add_system_message(f"📝 Contenido: {content}")
+            self.list_current_directory()
+        except Exception as e:
+            self.add_error_message(f"❌ Error creando archivo: {str(e)}")
+
+    def list_current_directory(self):
+        """Lista el contenido del directorio actual"""
+        try:
+            items = list(self.current_directory.iterdir())
+            
+            if not items:
+                self.add_system_message("📂 El directorio está vacío")
+                return
+            
+            # Separar archivos y carpetas
+            folders = [item for item in items if item.is_dir()]
+            files = [item for item in items if item.is_file()]
+            
+            message = f"📂 **Contenido de {self.current_directory}:**\n\n"
+            
+            if folders:
+                message += "**📁 Carpetas:**\n"
+                for folder in sorted(folders):
+                    message += f"• {folder.name}/\n"
+                message += "\n"
+            
+            if files:
+                message += "**📄 Archivos:**\n"
+                for file in sorted(files):
+                    size = file.stat().st_size
+                    message += f"• {file.name} ({size} bytes)\n"
+            
+            self.add_system_message(message)
+            
+        except Exception as e:
+            self.add_error_message(f"❌ Error listando directorio: {str(e)}")
+
+    def handle_file_edit(self, command):
+        """Maneja edición de archivos"""
+        try:
+            # Extraer nombre de archivo
+            filename = None
+            for word in command.split():
+                if '.' in word:  # Buscar palabras con extensión
+                    filename = word
+                    break
+            
+            if filename:
+                file_path = self.current_directory / filename
+                if file_path.exists():
+                    self.edit_file_interactive(file_path)
+                else:
+                    self.add_error_message(f"❌ Archivo no encontrado: {filename}")
+            else:
+                self.add_warning_message("⚠️ Especifica el nombre del archivo a editar")
+                
+        except Exception as e:
+            self.add_error_message(f"❌ Error editando archivo: {str(e)}")
+
+    def edit_file_interactive(self, file_path):
+        """Abre editor interactivo para archivo"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Diálogo de edición
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"Editando: {file_path.name}")
+            dialog.setMinimumSize(600, 400)
+            
+            layout = QVBoxLayout(dialog)
+            
+            # Editor
+            editor = QPlainTextEdit()
+            editor.setPlainText(content)
+            layout.addWidget(editor)
+            
+            # Botones
+            btn_layout = QHBoxLayout()
+            save_btn = QPushButton("💾 Guardar")
+            save_btn.clicked.connect(lambda: self.save_edited_file(file_path, editor.toPlainText(), dialog))
+            cancel_btn = QPushButton("❌ Cancelar")
+            cancel_btn.clicked.connect(dialog.reject)
+            
+            btn_layout.addWidget(save_btn)
+            btn_layout.addWidget(cancel_btn)
+            layout.addLayout(btn_layout)
+            
+            dialog.exec_()
+            
+        except Exception as e:
+            self.add_error_message(f"❌ Error leyendo archivo: {str(e)}")
 
     def save_edited_file(self, file_path, content, dialog):
         """Guarda el archivo editado"""
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            self.add_success_message(f"✅ Archivo '{os.path.basename(file_path)}' guardado exitosamente")
+            
+            self.add_success_message(f"✅ Archivo guardado: {file_path.name}")
             dialog.accept()
+        except Exception as e:
+            self.add_error_message(f"❌ Error guardando archivo: {str(e)}")
+
+    def handle_deletion(self, command):
+        """Maneja eliminación de archivos/carpetas"""
+        try:
+            target_name = None
+            words = command.split()
             
-            # Actualizar en el editor principal si está abierto
-            if hasattr(self.parent_window, 'open_files'):
-                for path, tab_data in self.parent_window.open_files.items():
-                    if path == file_path and tab_data['editor']:
-                        tab_data['editor'].setPlainText(content)
-                        tab_data['editor'].document().setModified(False)
+            # Buscar nombre después de palabras clave de eliminación
+            delete_keywords = ['elimina', 'borra', 'delete', 'remove']
+            for i, word in enumerate(words):
+                if word.lower() in delete_keywords and i + 1 < len(words):
+                    target_name = words[i + 1]
+                    break
+            
+            if target_name:
+                target_path = self.current_directory / target_name
+                
+                if target_path.exists():
+                    # Confirmar eliminación
+                    reply = QMessageBox.question(
+                        self, "Confirmar eliminación",
+                        f"¿Estás seguro de eliminar: {target_name}?",
+                        QMessageBox.Yes | QMessageBox.No
+                    )
+                    
+                    if reply == QMessageBox.Yes:
+                        if target_path.is_dir():
+                            shutil.rmtree(target_path)
+                            self.add_success_message(f"✅ Carpeta eliminada: {target_name}")
+                        else:
+                            target_path.unlink()
+                            self.add_success_message(f"✅ Archivo eliminado: {target_name}")
                         
-        except Exception as e:
-            self.add_error_message(f"❌ Error al guardar archivo: {str(e)}")
-
-    # ===== FUNCIONES DE EJECUCIÓN DE CÓDIGO =====
-    def quick_delete_file(self):
-        """Elimina un archivo rápidamente"""
-        files = []
-        for root, dirs, filenames in os.walk(self.project_path):
-            for file in filenames:
-                files.append(os.path.join(root, file))
-        if not files:
-            self.add_warning_message("No hay archivos en el proyecto")
-            return
-        file_path, ok = QInputDialog.getItem(self, "Eliminar Archivo", "Selecciona un archivo:", files, 0, False)
-        if ok and file_path:
-            try:
-                os.remove(file_path)
-                self.add_success_message(f"✅ Archivo '{os.path.basename(file_path)}' eliminado exitosamente")
-            except Exception as e:
-                self.add_error_message(f"❌ Error al eliminar archivo: {str(e)}")
-    def run_project(self):
-        """Ejecuta el proyecto actual"""
-        project_language = getattr(self.parent_window, 'project_language', 'Java').lower()
-        
-        try:
-            if project_language == 'java':
-                self.run_java_project()
-            elif project_language == 'kotlin':
-                self.run_kotlin_project()
-            elif project_language == 'python':
-                self.run_python_project()
-            else:
-                self.add_warning_message(f"Ejecución para {project_language} no implementada")
-                
-        except Exception as e:
-            self.add_error_message(f"❌ Error al ejecutar proyecto: {str(e)}")
-
-    def run_java_project(self):
-        """Ejecuta proyecto Java"""
-        # Buscar archivo principal
-        main_files = []
-        for root, dirs, files in os.walk(self.project_path):
-            for file in files:
-                if file.endswith('.java'):
-                    with open(os.path.join(root, file), 'r', encoding='utf-8') as f:
-                        content = f.read()
-                        if 'public static void main' in content:
-                            main_files.append(os.path.join(root, file))
-        
-        if not main_files:
-            self.add_error_message("❌ No se encontró archivo principal con main()")
-            return
-        
-        if len(main_files) > 1:
-            file_path, ok = QInputDialog.getItem(self, "Seleccionar Archivo Principal", 
-                                               "Múltiples archivos main encontrados:", main_files, 0, False)
-            if not ok:
-                return
-        else:
-            file_path = main_files[0]
-        
-        # Compilar y ejecutar
-        try:
-            self.add_system_message("🔨 Compilando proyecto Java...")
-            
-            # Compilar
-            compile_process = subprocess.run(['javac', file_path], 
-                                          cwd=os.path.dirname(file_path),
-                                          capture_output=True, text=True)
-            
-            if compile_process.returncode != 0:
-                self.add_error_message(f"❌ Error de compilación:\n```\n{compile_process.stderr}\n```")
-                return
-            
-            # Ejecutar
-            class_name = os.path.basename(file_path).replace('.java', '')
-            self.add_system_message("▶️ Ejecutando...")
-            
-            run_process = subprocess.run(['java', class_name], 
-                                      cwd=os.path.dirname(file_path),
-                                      capture_output=True, text=True)
-            
-            output = f"**Salida:**\n```\n{run_process.stdout}\n```"
-            if run_process.stderr:
-                output += f"\n**Errores:**\n```\n{run_process.stderr}\n```"
-            
-            self.add_system_message(output)
-            
-        except Exception as e:
-            self.add_error_message(f"❌ Error en ejecución: {str(e)}")
-
-    def run_python_project(self):
-        """Ejecuta proyecto Python"""
-        main_files = []
-        for root, dirs, files in os.walk(self.project_path):
-            for file in files:
-                if file.endswith('.py') and not file.startswith('__'):
-                    main_files.append(os.path.join(root, file))
-        
-        if not main_files:
-            self.add_error_message("❌ No se encontraron archivos .py")
-            return
-        
-        if len(main_files) > 1:
-            file_path, ok = QInputDialog.getItem(self, "Seleccionar Archivo", 
-                                               "Selecciona archivo Python:", main_files, 0, False)
-            if not ok:
-                return
-        else:
-            file_path = main_files[0]
-        
-        try:
-            self.add_system_message(f"▶️ Ejecutando {os.path.basename(file_path)}...")
-            
-            process = subprocess.run(['python', file_path], 
-                                  cwd=self.project_path,
-                                  capture_output=True, text=True)
-            
-            output = f"**Salida:**\n```\n{process.stdout}\n```"
-            if process.stderr:
-                output += f"\n**Errores:**\n```\n{process.stderr}\n```"
-            
-            self.add_system_message(output)
-            
-        except Exception as e:
-            self.add_error_message(f"❌ Error en ejecución: {str(e)}")
-    def run_kotlin_project(self):
-        """Ejecuta proyecto Kotlin (pendiente de implementar)"""
-        self.add_warning_message("Ejecución de proyectos Kotlin no implementada aún.")
-
-    def compile_project(self):
-        """Compila el proyecto actual (solo Java/Kotlin)"""
-        project_language = getattr(self.parent_window, 'project_language', 'Java').lower()
-        try:
-            if project_language == 'java':
-                self.add_system_message("🔨 Compilando proyecto Java...")
-                # Implementa compilación aquí si lo deseas
-            elif project_language == 'kotlin':
-                self.add_system_message("🔨 Compilando proyecto Kotlin...")
-                # Implementa compilación aquí si lo deseas
-            else:
-                self.add_warning_message(f"Compilación para {project_language} no implementada")
-        except Exception as e:
-            self.add_error_message(f"❌ Error al compilar proyecto: {str(e)}")
-
-    def debug_project(self):
-        """Debug del proyecto (pendiente de implementar)"""
-        self.add_warning_message("Funcionalidad de debug no implementada aún.")
-
-    def check_syntax(self):
-        """Analiza la sintaxis del proyecto (pendiente de implementar)"""
-        self.add_warning_message("Análisis de sintaxis no implementado aún.")
-
-    def run_code_snippet(self):
-        """Ejecuta un snippet de código (pendiente de implementar)"""
-        self.add_warning_message("Ejecución de snippets no implementada aún.")
-
-    def project_stats(self):
-        """Muestra estadísticas del proyecto"""
-        self.analyze_project()
-
-    def show_dependencies(self):
-        """Muestra dependencias del proyecto (pendiente de implementar)"""
-        self.add_warning_message("Visualización de dependencias no implementada aún.")
-
-    def refactor_project(self):
-        """Refactoriza el proyecto (pendiente de implementar)"""
-        self.add_warning_message("Refactorización no implementada aún.")
-
-    def export_project_quick(self):
-        """Exporta el proyecto rápidamente"""
-        if hasattr(self.parent_window, "export_project"):
-            self.parent_window.export_project()
-        else:
-            self.add_warning_message("Exportación rápida no disponible.")
-    # ===== FUNCIONES DE ANÁLISIS =====
-    
-    def analyze_project(self):
-        """Analiza el proyecto y muestra estadísticas"""
-        try:
-            stats = {
-                'total_files': 0,
-                'total_size': 0,
-                'by_extension': {},
-                'largest_files': []
-            }
-            
-            for root, dirs, files in os.walk(self.project_path):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    stats['total_files'] += 1
-                    
-                    # Tamaño
-                    size = os.path.getsize(file_path)
-                    stats['total_size'] += size
-                    
-                    # Extensión
-                    ext = os.path.splitext(file)[1].lower() or 'sin extensión'
-                    stats['by_extension'][ext] = stats['by_extension'].get(ext, 0) + 1
-                    
-                    # Archivos más grandes
-                    stats['largest_files'].append((file_path, size))
-            
-            # Ordenar archivos por tamaño
-            stats['largest_files'].sort(key=lambda x: x[1], reverse=True)
-            
-            # Generar reporte
-            report = f"**📊 Análisis del Proyecto**\n\n"
-            report += f"• **Archivos totales:** {stats['total_files']}\n"
-            report += f"• **Tamaño total:** {stats['total_size'] / 1024:.2f} KB\n\n"
-            
-            report += "**📁 Por extensión:**\n"
-            for ext, count in sorted(stats['by_extension'].items(), key=lambda x: x[1], reverse=True):
-                report += f"• `{ext}`: {count} archivos\n"
-            
-            report += f"\n**🏆 Archivos más grandes:**\n"
-            for file_path, size in stats['largest_files'][:5]:
-                name = os.path.basename(file_path)
-                report += f"• `{name}`: {size / 1024:.2f} KB\n"
-            
-            self.add_system_message(report)
-            
-        except Exception as e:
-            self.add_error_message(f"❌ Error en análisis: {str(e)}")
-
-    # ===== FUNCIONES DE BÚSQUEDA =====
-    
-    def search_in_code(self):
-        """Busca texto en todos los archivos del proyecto"""
-        search_text, ok = QInputDialog.getText(self, "Buscar en Código", "Texto a buscar:")
-        if ok and search_text:
-            try:
-                results = []
-                for root, dirs, files in os.walk(self.project_path):
-                    for file in files:
-                        if file.endswith(('.java', '.kt', '.py', '.xml', '.txt', '.md')):
-                            file_path = os.path.join(root, file)
-                            try:
-                                with open(file_path, 'r', encoding='utf-8') as f:
-                                    content = f.read()
-                                    if search_text in content:
-                                        # Contar ocurrencias
-                                        count = content.count(search_text)
-                                        results.append((file_path, count))
-                            except:
-                                continue
-                
-                if results:
-                    result_text = f"**🔍 Resultados para '{search_text}':**\n\n"
-                    for file_path, count in sorted(results, key=lambda x: x[1], reverse=True):
-                        rel_path = os.path.relpath(file_path, self.project_path)
-                        result_text += f"• `{rel_path}`: {count} ocurrencias\n"
-                    
-                    self.add_system_message(result_text)
+                        self.list_current_directory()
                 else:
-                    self.add_warning_message(f"❌ No se encontró '{search_text}' en el proyecto")
-                    
-            except Exception as e:
-                self.add_error_message(f"❌ Error en búsqueda: {str(e)}")
-    def search_in_code_specific(self, search_text):
-        """Busca texto específico en todos los archivos del proyecto"""
-        try:
-            results = []
-            for root, dirs, files in os.walk(self.project_path):
-                for file in files:
-                    if file.endswith(('.java', '.kt', '.py', '.xml', '.txt', '.md')):
-                        file_path = os.path.join(root, file)
-                        try:
-                            with open(file_path, 'r', encoding='utf-8') as f:
-                                content = f.read()
-                                if search_text in content:
-                                    count = content.count(search_text)
-                                    results.append((file_path, count))
-                        except:
-                            continue
-            if results:
-                result_text = f"**🔍 Resultados para '{search_text}':**\n\n"
-                for file_path, count in sorted(results, key=lambda x: x[1], reverse=True):
-                    rel_path = os.path.relpath(file_path, self.project_path)
-                    result_text += f"• `{rel_path}`: {count} ocurrencias\n"
-                self.add_system_message(result_text)
+                    self.add_error_message(f"❌ No encontrado: {target_name}")
             else:
-                self.add_warning_message(f"❌ No se encontró '{search_text}' en el proyecto")
+                self.add_warning_message("⚠️ Especifica qué quieres eliminar")
+                
         except Exception as e:
-            self.add_error_message(f"❌ Error en búsqueda: {str(e)}")
+            self.add_error_message(f"❌ Error eliminando: {str(e)}")
 
-    # ===== FUNCIONES MEJORADAS DE MENSAJES =====
+    def show_system_stats(self):
+        """Muestra estadísticas del sistema"""
+        try:
+            # Espacio en disco
+            disk_usage = psutil.disk_usage(str(self.current_directory))
+            total_gb = disk_usage.total / (1024**3)
+            used_gb = disk_usage.used / (1024**3)
+            free_gb = disk_usage.free / (1024**3)
+            
+            # Información del sistema
+            cpu_percent = psutil.cpu_percent(interval=1)
+            memory = psutil.virtual_memory()
+            memory_gb = memory.total / (1024**3)
+            memory_used_gb = memory.used / (1024**3)
+            
+            stats_message = f"""
+💻 **ESTADÍSTICAS DEL SISTEMA**
+
+📊 **Espacio en disco:**
+• Total: {total_gb:.2f} GB
+• Usado: {used_gb:.2f} GB ({disk_usage.percent}%)
+• Libre: {free_gb:.2f} GB
+
+⚡ **Rendimiento:**
+• CPU: {cpu_percent}% utilizado
+• Memoria: {memory_used_gb:.2f} GB / {memory_gb:.2f} GB ({memory.percent}%)
+
+📂 **Directorio actual:**
+• Ruta: {self.current_directory}
+• Archivos: {len(list(self.current_directory.glob('*')))} elementos
+"""
+            self.add_system_message(stats_message)
+            
+        except Exception as e:
+            self.add_error_message(f"❌ Error obteniendo estadísticas: {str(e)}")
+
+    def execute_system_command(self, command):
+        """Ejecuta comandos del sistema"""
+        try:
+            # Extraer el comando después de "ejecuta" o "run"
+            cmd_text = command.split(' ', 1)[1] if ' ' in command else ""
+            
+            if cmd_text:
+                result = subprocess.run(cmd_text, shell=True, capture_output=True, text=True, cwd=self.current_directory)
+                
+                output = f"**💻 Ejecutando: `{cmd_text}`**\n\n"
+                if result.stdout:
+                    output += f"**✅ Salida:**\n```\n{result.stdout}\n```\n"
+                if result.stderr:
+                    output += f"**❌ Errores:**\n```\n{result.stderr}\n```"
+                if not result.stdout and not result.stderr:
+                    output += "✅ Comando ejecutado (sin salida)"
+                
+                self.add_system_message(output)
+            else:
+                self.add_warning_message("⚠️ Especifica el comando a ejecutar")
+                
+        except Exception as e:
+            self.add_error_message(f"❌ Error ejecutando comando: {str(e)}")
+
+    # ===== MÉTODOS DE IA (MEJORADOS) =====
     
+    def process_with_ai(self, command):
+        """Procesa comandos complejos con IA"""
+        # Por ahora, respuesta básica - luego integrar DeepSeek real
+        response = self.generate_smart_response(command)
+        self.add_ai_response(response)
+
+    def generate_smart_response(self, command):
+        """Genera respuestas inteligentes para comandos no reconocidos"""
+        lower_cmd = command.lower()
+        
+        if '?' in command or 'qué' in lower_cmd or 'cómo' in lower_cmd:
+            return f"🤖 Para esa consulta necesitaría conectarme a DeepSeek. Por ahora puedo ayudarte con:\n• Gestión de archivos\n• Comandos del sistema\n• Navegación de directorios"
+        
+        return f"🔧 **Comando reconocido:** '{command}'\n\n💡 **Sugerencias:**\n• Usa 'lista' para ver archivos\n• 'crea archivo.txt' para crear archivos\n• 'edita nombre.txt' para modificar\n• 'estadísticas' para info del sistema"
+
+    # ===== MÉTODOS AUXILIARES =====
+    
+    def _add_formatted_message(self, sender, message, color):
+        """Añade mensaje formateado al chat"""
+        cursor = self.chat_history.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        
+        timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
+        
+        formatted_message = f"""
+        <div style="background-color: {color}; padding: 10px; margin: 5px; border-radius: 8px;">
+            <div style="color: white; font-weight: bold;">{sender} <span style="color: #ccc; font-size: 0.8em;">[{timestamp}]</span></div>
+            <div style="color: white; margin-top: 5px;">{message.replace(chr(10), '<br>')}</div>
+        </div>
+        <br>
+        """
+        
+        cursor.insertHtml(formatted_message)
+        self.chat_history.ensureCursorVisible()
+
     def add_system_message(self, message):
-        """Añade un mensaje del sistema formateado"""
         self._add_formatted_message("🤖 **Sistema**", message, "#2d2d30")
 
     def add_success_message(self, message):
-        """Añade un mensaje de éxito"""
         self._add_formatted_message("✅ **Éxito**", message, "#4CAF50")
 
     def add_warning_message(self, message):
-        """Añade un mensaje de advertencia"""
         self._add_formatted_message("⚠️ **Advertencia**", message, "#FF9800")
 
     def add_error_message(self, message):
-        """Añade un mensaje de error"""
         self._add_formatted_message("❌ **Error**", message, "#F44336")
 
-    def add_code_message(self, message, language=""):
-        """Añade un mensaje con código formateado"""
-        cursor = self.chat_history.textCursor()
-        cursor.movePosition(QTextCursor.End)
-        
-        # Encabezado del mensaje
-        timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
-        cursor.insertHtml(f'''
-            <div style="background-color: #1e1e1e; padding: 10px; margin: 5px; border-radius: 8px; border-left: 4px solid #569CD6;">
-                <div style="color: #569CD6; font-weight: bold;">💻 **Código** <span style="color: #666; font-size: 0.8em;">[{timestamp}]</span></div>
-        ''')
-        
-        # Código con botón de copiar
-        code_id = f"code_{hash(message) % 10000}"
-        cursor.insertHtml(f'''
-            <div style="position: relative;">
-                <pre style="background-color: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 5px; overflow-x: auto; margin: 10px 0; border: 1px solid #3e3e42;">
-{message}
-                </pre>
-                <button id="{code_id}" onclick="copyCode('{code_id}')" style="position: absolute; top: 5px; right: 5px; background: #569CD6; color: white; border: none; border-radius: 3px; padding: 2px 8px; font-size: 10px; cursor: pointer;">
-                    📋 Copiar
-                </button>
-            </div>
-        ''')
-        
-        cursor.insertHtml('</div><br>')
-        self.chat_history.ensureCursorVisible()
+    def add_ai_response(self, message):
+        self._add_formatted_message("🤖 **IA**", message, "#388E3C")
 
-    def _add_formatted_message(self, sender, message, color):
-        """Añade un mensaje formateado"""
-        cursor = self.chat_history.textCursor()
-        cursor.movePosition(QTextCursor.End)
-        
-        timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
-        
-        # Detectar si el mensaje contiene código
-        if '```' in message:
-            parts = message.split('```')
-            formatted_message = ""
-            for i, part in enumerate(parts):
-                if i % 2 == 1:  # Parte de código
-                    formatted_message += f'<pre style="background-color: #1e1e1e; color: #d4d4d4; padding: 10px; border-radius: 5px; overflow-x: auto; margin: 5px 0;">{part}</pre>'
+    def quick_search(self):
+        """Búsqueda rápida de archivos"""
+        search_text, ok = QInputDialog.getText(self, "Buscar archivos", "Texto a buscar:")
+        if ok and search_text:
+            self.handle_search(f"busca {search_text}")
+
+    def handle_search(self, command):
+        """Maneja búsqueda de archivos"""
+        try:
+            search_term = command.split(' ', 1)[1] if ' ' in command else ""
+            
+            if search_term:
+                results = []
+                for root, dirs, files in os.walk(self.current_directory):
+                    for file in files:
+                        if search_term.lower() in file.lower():
+                            results.append(Path(root) / file)
+                
+                if results:
+                    message = f"🔍 **Resultados para '{search_term}':**\n\n"
+                    for result in results[:10]:  # Limitar a 10 resultados
+                        message += f"• {result.relative_to(self.current_directory)}\n"
+                    
+                    if len(results) > 10:
+                        message += f"\n... y {len(results) - 10} más"
+                    
+                    self.add_system_message(message)
                 else:
-                    formatted_message += part.replace('\n', '<br>')
-            message = formatted_message
-        else:
-            message = message.replace('\n', '<br>')
-        
-        cursor.insertHtml(f'''
-            <div style="background-color: {color}; padding: 10px; margin: 5px; border-radius: 8px; border-left: 4px solid {color};">
-                <div style="color: white; font-weight: bold;">{sender} <span style="color: #ccc; font-size: 0.8em;">[{timestamp}]</span></div>
-                <div style="color: white; margin-top: 5px;">{message}</div>
-            </div>
-        ''')
-        
-        cursor.insertHtml('<br>')
-        self.chat_history.ensureCursorVisible()
-
-
-    def send_message(self):
-        """Envía un mensaje con procesamiento de comandos especiales"""
-        user_text = self.user_input.text().strip()
-        if not user_text:
-            return
-            
-        self._add_formatted_message("👤 **Tú**", user_text, "#1976D2")  # <-- CORREGIDO
-        self.user_input.clear()
-        
-        # Procesar comandos especiales
-        if user_text.startswith('/'):
-            self.process_command(user_text)
-        else:
-            # Procesamiento normal con IA
-            self.process_with_ai(user_text)
-    # ...existing code...
-
-    def process_command(self, command):
-        """Procesa comandos especiales"""
-        cmd = command.lower().strip()
-        
-        if cmd == '/archivos' or cmd == '/files':
-            self.list_project_files()
-        elif cmd == '/estadisticas' or cmd == '/stats':
-            self.analyze_project()
-        elif cmd == '/ejecutar' or cmd == '/run':
-            self.run_project()
-        elif cmd == '/buscar' or cmd.startswith('/buscar '):
-            search_text = command[7:].strip()
-            if search_text:
-                self.search_in_code_specific(search_text)
+                    self.add_warning_message(f"❌ No se encontraron archivos con '{search_term}'")
             else:
-                self.search_in_code()
-        elif cmd == '/help' or cmd == '/ayuda':
-            self.show_help()
-        elif cmd.startswith('/crear_carpeta '):
-            folder_name = command[15:].strip()
-            self.create_specific_folder(folder_name)
-        elif cmd.startswith('/crear_archivo '):
-            file_path = command[15:].strip()
-            self.create_specific_file(file_path)
-
-        else:
-            self.add_warning_message(f"Comando no reconocido: {command}")
-    def create_specific_folder(self, folder_name):
-        """Crea una carpeta específica"""
-        try:
-            folder_path = os.path.join(self.project_path, folder_name)
-            os.makedirs(folder_path, exist_ok=True)
-            self.add_success_message(f"✅ Carpeta '{folder_name}' creada/verificada")
-            if hasattr(self.parent_window, 'update_file_explorer'):
-                self.parent_window.update_file_explorer()
+                self.add_warning_message("⚠️ Especifica qué quieres buscar")
+                
         except Exception as e:
-            self.add_error_message(f"❌ Error: {str(e)}")
+            self.add_error_message(f"❌ Error en búsqueda: {str(e)}")
 
-    def create_specific_file(self, file_path):
-        """Crea un archivo específico con contenido básico"""
+    def open_terminal(self):
+        """Abre terminal en el directorio actual"""
         try:
-            full_path = os.path.join(self.project_path, file_path)
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            if os.name == 'nt':  # Windows
+                subprocess.Popen(f'start cmd /K "cd /d {self.current_directory}"', shell=True)
+            else:  # Linux/Mac
+                subprocess.Popen(f'gnome-terminal --working-directory={self.current_directory}', shell=True)
             
-            # Contenido según extensión
-            if file_path.endswith('.py'):
-                content = '# Archivo Python\nprint("Hola Mundo")'
-            elif file_path.endswith('.java'):
-                content = '// Archivo Java\npublic class Test {\n    public static void main(String[] args) {\n        System.out.println("Hola Mundo");\n    }\n}'
-            elif file_path.endswith('.kt'):
-                content = '// Archivo Kotlin\nfun main() {\n    println("Hola Mundo")\n}'
-            else:
-                content = f'// Archivo {file_path}'
-                
-            with open(full_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-                
-            self.add_success_message(f"✅ Archivo '{file_path}' creado")
-            
+            self.add_success_message("✅ Terminal abierto en el directorio actual")
         except Exception as e:
-            self.add_error_message(f"❌ Error: {str(e)}")
-    def show_help(self):
-        """Muestra ayuda de comandos"""
-        help_text = """
-        **🛠️ Comandos Disponibles:**
+            self.add_error_message(f"❌ Error abriendo terminal: {str(e)}")
 
-        **📁 Archivos:**
-        • `/archivos` - Lista la estructura del proyecto
-        • `/estadisticas` - Muestra estadísticas del proyecto
-        • `/buscar [texto]` - Busca texto en los archivos
-
-        **⚡ Ejecución:**
-        • `/ejecutar` - Ejecuta el proyecto actual
-        • `/compilar` - Compila el proyecto
-
-        **🔧 Utilidades:**
-        • `/help` - Muestra esta ayuda
-
-        **💬 IA:**
-        • Escribe normalmente para conversar con la IA
-        • Pide crear, modificar o analizar archivos
-                """
-        self.add_system_message(help_text)
-
-    # Mantener las funciones existentes de IA pero mejorarlas
-    def process_with_ai(self, user_text):
-        """Procesa el mensaje con IA"""
-        # Aquí integrarías con DeepSeek/StarCoder como antes
-        # Pero ahora con más contexto del proyecto
+    def show_tools_menu(self):
+        """Muestra menú de herramientas avanzadas"""
+        menu = QMenu(self)
         
-        # Por ahora, respuesta local mejorada
-        self.enhanced_local_response(user_text)
-    def process_advanced_command(self, command):
-        """Procesa comandos avanzados de creación de archivos y carpetas"""
-        lower_cmd = command.lower()
+        tools = [
+            ("📷 Capturar pantalla", self.take_screenshot),
+            ("📁 Comprimir archivos", self.compress_files),
+            ("🔒 Cambiar permisos", self.change_permissions),
+            ("📈 Análisis detallado", self.detailed_analysis)
+        ]
         
-        # Detectar patrones de creación múltiple
-        if any(word in lower_cmd for word in ['crea estos', 'crear varios', 'multiple archivos']):
-            self.handle_multiple_file_creation(command)
-        elif 'crear carpeta' in lower_cmd or 'crea la carpeta' in lower_cmd:
-            self.handle_folder_creation(command)
-        else:
-            self.enhanced_local_response(command)
-
-    def handle_multiple_file_creation(self, command):
-        """Maneja la creación de múltiples archivos"""
-        try:
-            # Extraer nombres y tipos de archivo del comando
-            if 'prueba_process' in command:
-                base_name = 'prueba_process'
-                extensions = ['.py', '.java', '.kt']
-                folder_name = 'Logica'
-                
-                # Crear carpeta si no existe
-                folder_path = os.path.join(self.project_path, folder_name)
-                os.makedirs(folder_path, exist_ok=True)
-                
-                # Crear archivos
-                created_files = []
-                for ext in extensions:
-                    file_path = os.path.join(folder_path, f"{base_name}{ext}")
-                    
-                    # Contenido básico según extensión
-                    if ext == '.py':
-                        content = f'# Archivo {base_name}{ext}\nprint("Hola desde Python")'
-                    elif ext == '.java':
-                        content = f'// Archivo {base_name}{ext}\npublic class {base_name} {{\n    public static void main(String[] args) {{\n        System.out.println("Hola desde Java");\n    }}\n}}'
-                    elif ext == '.kt':
-                        content = f'// Archivo {base_name}{ext}\nclass {base_name} {{\n    fun main() {{\n        println("Hola desde Kotlin")\n    }}\n}}'
-                    else:
-                        content = f'// Archivo {base_name}{ext}'
-                    
-                    with open(file_path, 'w', encoding='utf-8') as f:
-                        f.write(content)
-                    created_files.append(f"{base_name}{ext}")
-                
-                self.add_success_message(f"✅ Carpeta '{folder_name}' y archivos creados exitosamente:")
-                for file in created_files:
-                    self.add_system_message(f"• 📄 {file}")
-                    
-                # Actualizar explorador
-                if hasattr(self.parent_window, 'update_file_explorer'):
-                    self.parent_window.update_file_explorer()
-                    
-            else:
-                self.add_warning_message("No se pudo procesar el comando de creación múltiple")
-                
-        except Exception as e:
-            self.add_error_message(f"❌ Error al crear archivos múltiples: {str(e)}")
-
-    def handle_folder_creation(self, command):
-        """Maneja la creación de carpetas específicas"""
-        try:
-            # Extraer nombre de carpeta del comando
-            if 'logica' in command.lower():
-                folder_name = 'Logica'
-                folder_path = os.path.join(self.project_path, folder_name)
-                
-                os.makedirs(folder_path, exist_ok=True)
-                self.add_success_message(f"✅ Carpeta '{folder_name}' creada/verificada exitosamente")
-                
-                # Actualizar explorador
-                if hasattr(self.parent_window, 'update_file_explorer'):
-                    self.parent_window.update_file_explorer()
-                    
-        except Exception as e:
-            self.add_error_message(f"❌ Error al crear carpeta: {str(e)}")
-    def enhanced_local_response(self, user_text):
-        """Respuesta local mejorada con conocimiento del proyecto"""
-        lower_msg = user_text.lower()
+        for text, action in tools:
+            act = QAction(text, self)
+            act.triggered.connect(action)
+            menu.addAction(act)
         
-        # Comandos avanzados primero
-        if any(word in lower_msg for word in ['crea estos', 'crear varios', 'multiple archivos', 'crear carpeta']):
-            self.process_advanced_command(user_text)
-        # Detectar intenciones relacionadas con archivos (mantener existentes)
-        elif any(word in lower_msg for word in ['crear archivo', 'nuevo archivo', 'new file']):
-            self.quick_create_file()
-        elif any(word in lower_msg for word in ['listar archivos', 'ver archivos', 'ls']):
-            self.list_project_files()
-        # ... resto de comandos existentes
+        menu.exec_(QCursor.pos())
 
-    def generate_enhanced_response(self, user_text):
-        """Genera una respuesta mejorada basada en el contexto del proyecto"""
-        # Aquí podrías integrar más inteligencia contextual
-        return f"He procesado tu solicitud: '{user_text}'. Puedo ayudarte con gestión de archivos, ejecución de código, análisis de proyectos y más. Usa los botones de acción rápida o escribe comandos como '/help'."
+    def take_screenshot(self):
+        """Toma captura de pantalla (placeholder)"""
+        self.add_system_message("📷 Función de captura de pantalla en desarrollo")
 
-    def add_ai_response(self, response):
-        """Añade respuesta de IA formateada"""
-        self._add_formatted_message("🤖 **IA**", response, "#388E3C")
+    def compress_files(self):
+        """Comprime archivos (placeholder)"""
+        self.add_system_message("📁 Función de compresión en desarrollo")
 
-    # Añadir esta función auxiliar para copiar código
-    def add_copy_functionality(chat_history):
-        """Añade funcionalidad JavaScript para copiar código"""
-        js_code = """
-        <script>
-        function copyCode(elementId) {
-            var codeElement = document.getElementById(elementId).previousElementSibling;
-            var textArea = document.createElement("textarea");
-            textArea.value = codeElement.textContent;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand("copy");
-            document.body.removeChild(textArea);
-            
-            var button = document.getElementById(elementId);
-            button.textContent = "✅ Copiado";
-            setTimeout(function() {
-                button.textContent = "📋 Copiar";
-            }, 2000);
-        }
-        </script>
-        """
-        # Esto sería más efectivo en una aplicación web, pero para Qt necesitamos un enfoque diferente
-        pass
+    def change_permissions(self):
+        """Cambia permisos (placeholder)"""
+        self.add_system_message("🔒 Función de permisos en desarrollo")
+
+    def detailed_analysis(self):
+        """Análisis detallado (placeholder)"""
+        self.add_system_message("📈 Análisis detallado en desarrollo")
+
     def load_api_keys(self):
-        """Carga las API keys de los proveedores de IA"""
+        """Carga las API keys (para futura integración con DeepSeek)"""
         self.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY", "")
-        self.starcoder_api_key = os.getenv("HUGGINGFACE_API_KEY", "")
-
-    def detect_available_providers(self):
-        """Detecta proveedores de IA disponibles y actualiza el combo"""
-        self.available_providers = AIProvider.get_available_providers()
-        self.provider_combo.clear()
-        for provider in self.available_providers:
-            self.provider_combo.addItem(provider)
-        if self.available_providers:
-            self.current_provider = self.available_providers[0]
-            self.provider_combo.setCurrentText(self.current_provider)
-
-    def generate_xml(self):
-        """Genera código XML del proyecto (pendiente de implementar)"""
-        self.add_system_message("Funcionalidad de generación XML en desarrollo.")
-
-    def generate_java(self):
-        """Genera código Java del proyecto (pendiente de implementar)"""
-        self.add_system_message("Funcionalidad de generación Java en desarrollo.")
-
-    def export_project(self):
-        """Exporta el proyecto (pendiente de implementar)"""
-        self.add_system_message("Funcionalidad de exportación en desarrollo.")
 class AIResponseEvent(QEvent):
     """Evento personalizado para respuestas de IA"""
     EVENT_TYPE = QEvent.Type(QEvent.registerEventType())
@@ -2517,6 +2141,8 @@ class FileIconDelegate(QStyledItemDelegate):
                 icon_text = self.icon_map.get(ext.lower(), '📄')  
 
             option.text = f"{icon_text} {file_name}"
+
+
 class IllustratorToolsPanel(QDockWidget):
     """Panel de herramientas de Illustrator para diseño Android"""
     
@@ -2696,6 +2322,7 @@ class EffectsPanel(QDockWidget):
     def __init__(self, parent=None):
         super().__init__("Efectos Android", parent)
         self.parent = parent
+        self.current_element = None  
         self.setup_ui()
     
     def setup_ui(self):
@@ -2916,6 +2543,561 @@ class EffectsPanel(QDockWidget):
             'fab': f'style="@style/Widget.MaterialComponents.FloatingActionButton"'
         }
         return effects.get(effect_id, '')
+
+class AdvancedIllustratorCanvas(QGraphicsView):
+    """Lienzo avanzado tipo Illustrator para diseño vectorial"""
+    
+    elementCreated = Signal(UIElement)
+    elementSelected = Signal(UIElement)
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.scene = QGraphicsScene()
+        self.setScene(self.scene)
+        self.setRenderHint(QPainter.Antialiasing)
+        self.setRenderHint(QPainter.SmoothPixmapTransform)
+        self.setDragMode(QGraphicsView.RubberBandDrag)
+        
+        # Configuración profesional
+        self.setStyleSheet("""
+            QGraphicsView {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #2C2C2C, stop:0.5 #3C3C3C, stop:1 #2C2C2C);
+                border: 1px solid #555;
+            }
+        """)
+        
+        # Herramientas y estado
+        self.current_tool = "select"
+        self.current_element = None
+        self.elements = []
+        self.selected_elements = []
+        self.temp_element = None
+        
+        # Propiedades de dibujo
+        self.current_color = QColor("#569CD6")
+        self.stroke_color = QColor("#000000")
+        self.stroke_width = 2
+        self.fill_enabled = True
+        self.stroke_enabled = True
+        
+        # Modo de dibujo
+        self.drawing = False
+        self.start_point = QPointF()
+            # AGREGAR ESTA INICIALIZACIÓN:
+        self.current_path = None
+        self.drawing = False
+        self.current_path = None
+        
+        # Configuración de vista
+        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # Cuadrícula y guías
+        self.grid_visible = True
+        self.grid_size = 20
+        self.guides = []
+        
+        # Zoom
+        self.zoom_level = 1.0
+        self.setup_grid()
+        
+    def setup_grid(self):
+        """Configura la cuadrícula de diseño"""
+        if self.grid_visible:
+            pen = QPen(QColor(60, 60, 60, 100))
+            pen.setWidth(1)
+            
+            # Líneas principales cada 100px
+            for x in range(-1000, 1000, 100):
+                line = QGraphicsLineItem(x, -1000, x, 1000)
+                line.setPen(pen)
+                line.setZValue(-100)
+                self.scene.addItem(line)
+                
+            for y in range(-1000, 1000, 100):
+                line = QGraphicsLineItem(-1000, y, 1000, y)
+                line.setPen(pen)
+                line.setZValue(-100)
+                self.scene.addItem(line)
+    
+    def set_tool(self, tool_id):
+        """Establece la herramienta actual"""
+        self.current_tool = tool_id
+        self.setCursor(self.get_tool_cursor(tool_id))
+        
+        if tool_id == "select":
+            self.setDragMode(QGraphicsView.RubberBandDrag)
+        else:
+            self.setDragMode(QGraphicsView.NoDrag)
+    
+    def get_tool_cursor(self, tool_id):
+        """Retorna el cursor apropiado para cada herramienta"""
+        cursors = {
+            "select": Qt.ArrowCursor,
+            "rectangle": Qt.CrossCursor,
+            "ellipse": Qt.CrossCursor,
+            "pen": Qt.CrossCursor,
+            "text": Qt.IBeamCursor,
+            "line": Qt.CrossCursor,
+            "hand": Qt.OpenHandCursor,
+            "zoom": QPixmap(":/cursors/zoom.png")  # Puedes agregar iconos personalizados
+        }
+        return cursors.get(tool_id, Qt.ArrowCursor)
+    
+    def mousePressEvent(self, event):
+        """Maneja el evento de presión del mouse"""
+        scene_pos = self.mapToScene(event.pos())
+        
+        if event.button() == Qt.LeftButton:
+            if self.current_tool == "select":
+                # Selección normal
+                super().mousePressEvent(event)
+            else:
+                # Iniciar creación de elemento
+                self.start_drawing(scene_pos)
+        
+        elif event.button() == Qt.RightButton:
+            # Herramienta de mano para navegar
+            self.setDragMode(QGraphicsView.ScrollHandDrag)
+            fake_event = QMouseEvent(
+                event.type(), event.localPos(), event.screenPos(),
+                Qt.LeftButton, Qt.LeftButton, event.modifiers()
+            )
+            super().mousePressEvent(fake_event)
+        
+        elif event.button() == Qt.MiddleButton:
+            # Zoom rápido
+            self.zoom_to_point(scene_pos, 1.2)
+    
+    def mouseMoveEvent(self, event):
+        """Maneja el movimiento del mouse"""
+        scene_pos = self.mapToScene(event.pos())
+        
+        if self.drawing and self.current_tool != "select":
+            self.update_drawing(scene_pos)
+        
+        # Actualizar coordenadas en la barra de estado
+        if hasattr(self.parent(), 'statusBar'):
+            self.parent().statusBar().showMessage(f"X: {scene_pos.x():.1f}, Y: {scene_pos.y():.1f} | Zoom: {self.zoom_level*100:.0f}%")
+        
+        super().mouseMoveEvent(event)
+    
+    def mouseReleaseEvent(self, event):
+        """Maneja la liberación del mouse"""
+        if event.button() == Qt.RightButton:
+            self.setDragMode(QGraphicsView.RubberBandDrag)
+        
+        if self.drawing:
+            self.finish_drawing()
+        
+        super().mouseReleaseEvent(event)
+    
+    def wheelEvent(self, event):
+        """Maneja el zoom con la rueda del mouse"""
+        factor = 1.2 if event.angleDelta().y() > 0 else 0.8
+        self.zoom_to_point(self.mapToScene(event.pos()), factor)
+    
+    def zoom_to_point(self, point, factor):
+        """Zoom centrado en un punto específico"""
+        self.scale(factor, factor)
+        self.zoom_level *= factor
+        
+        # Ajustar la vista para mantener el punto centrado
+        old_pos = self.mapFromScene(point)
+        center = self.mapToScene(self.viewport().rect().center())
+        delta = point - center
+        self.translate(delta.x(), delta.y())
+    
+    def start_drawing(self, pos):
+        """Inicia el proceso de dibujo"""
+        self.drawing = True
+        self.start_point = pos
+        
+        if self.current_tool == "rectangle":
+            self.create_rectangle(pos)
+        elif self.current_tool == "ellipse":
+            self.create_ellipse(pos)
+        elif self.current_tool == "pen":
+            self.start_path(pos)
+        elif self.current_tool == "text":
+            self.create_text(pos)
+        elif self.current_tool == "line":
+            self.create_line(pos)
+    
+    def update_drawing(self, pos):
+        """Actualiza el elemento durante el dibujo"""
+        if not self.temp_element:
+            return
+            
+        if self.current_tool in ["rectangle", "ellipse"]:
+            self.update_shape_dimensions(pos)
+        elif self.current_tool == "line":
+            self.update_line_endpoint(pos)
+        elif self.current_tool == "pen":
+            self.add_path_point(pos)
+    
+    def finish_drawing(self):
+        """Finaliza el proceso de dibujo"""
+        self.drawing = False
+        
+        if self.temp_element and self.temp_element.graphicsItem:
+            # Hacer el elemento seleccionable y movable
+            self.temp_element.graphicsItem.setFlag(QGraphicsItem.ItemIsSelectable, True)
+            self.temp_element.graphicsItem.setFlag(QGraphicsItem.ItemIsMovable, True)
+            
+            self.elements.append(self.temp_element)
+            self.elementCreated.emit(self.temp_element)
+            
+            # Seleccionar el nuevo elemento
+            self.select_element(self.temp_element)
+        
+        self.temp_element = None
+    
+    def create_rectangle(self, pos):
+        """Crea un rectángulo temporal"""
+        element = UIElement("rectangle", pos.x(), pos.y(), 1, 1)
+        rect_item = QGraphicsRectItem(0, 0, 1, 1)
+        rect_item.setPos(pos)
+        
+        # Aplicar estilo
+        brush = QBrush(self.current_color) if self.fill_enabled else QBrush(Qt.NoBrush)
+        pen = QPen(self.stroke_color, self.stroke_width) if self.stroke_enabled else QPen(Qt.NoPen)
+        
+        rect_item.setBrush(brush)
+        rect_item.setPen(pen)
+        
+        self.scene.addItem(rect_item)
+        element.graphicsItem = rect_item
+        self.temp_element = element
+    
+    def create_ellipse(self, pos):
+        """Crea una elipse temporal"""
+        element = UIElement("ellipse", pos.x(), pos.y(), 1, 1)
+        ellipse_item = QGraphicsEllipseItem(0, 0, 1, 1)
+        ellipse_item.setPos(pos)
+        
+        brush = QBrush(self.current_color) if self.fill_enabled else QBrush(Qt.NoBrush)
+        pen = QPen(self.stroke_color, self.stroke_width) if self.stroke_enabled else QPen(Qt.NoPen)
+        
+        ellipse_item.setBrush(brush)
+        ellipse_item.setPen(pen)
+        
+        self.scene.addItem(ellipse_item)
+        element.graphicsItem = ellipse_item
+        self.temp_element = element
+    
+    def create_text(self, pos):
+        """Crea un elemento de texto"""
+        element = UIElement("text", pos.x(), pos.y(), 200, 50)
+        text_item = QGraphicsTextItem("Texto editable")
+        text_item.setPos(pos)
+        text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
+        text_item.setDefaultTextColor(self.current_color)
+        
+        # Fuente profesional
+        font = QFont("Segoe UI", 12)
+        text_item.setFont(font)
+        
+        self.scene.addItem(text_item)
+        element.graphicsItem = text_item
+        element.setProperty("text", "Texto editable")
+        element.setProperty("textColor", self.current_color.name())
+        element.setProperty("textSize", "12pt")
+        
+        self.temp_element = element
+        self.finish_drawing()  # El texto se edita inmediatamente
+    
+    def create_line(self, pos):
+        """Crea una línea temporal"""
+        element = UIElement("line", pos.x(), pos.y(), 1, 1)
+        line_item = QGraphicsLineItem(pos.x(), pos.y(), pos.x(), pos.y())
+        
+        pen = QPen(self.stroke_color, self.stroke_width)
+        line_item.setPen(pen)
+        
+        self.scene.addItem(line_item)
+        element.graphicsItem = line_item
+        self.temp_element = element
+    
+    def start_path(self, pos):
+        """Inicia un trazo de pluma"""
+        element = UIElement("path", pos.x(), pos.y(), 0, 0)
+        path_item = QGraphicsPathItem()
+        
+        pen = QPen(self.stroke_color, self.stroke_width)
+        path_item.setPen(pen)
+        if self.fill_enabled:
+            path_item.setBrush(QBrush(self.current_color))
+        
+        self.path = QPainterPath()
+        self.path.moveTo(pos)
+        
+        path_item.setPath(self.path)
+        self.scene.addItem(path_item)
+        
+        element.graphicsItem = path_item
+        self.temp_element = element
+    
+    def add_path_point(self, pos):
+        """Añade un punto al trazo de pluma"""
+        if hasattr(self, 'path') and self.temp_element:
+            self.path.lineTo(pos)
+            self.temp_element.graphicsItem.setPath(self.path)
+    
+    def update_shape_dimensions(self, pos):
+        """Actualiza dimensiones de formas durante el dibujo"""
+        if not self.temp_element:
+            return
+            
+        x1, y1 = self.start_point.x(), self.start_point.y()
+        x2, y2 = pos.x(), pos.y()
+        
+        x = min(x1, x2)
+        y = min(y1, y2)
+        width = abs(x2 - x1)
+        height = abs(y2 - y1)
+        
+        # Actualizar elemento
+        self.temp_element.x = x
+        self.temp_element.y = y
+        self.temp_element.width = width
+        self.temp_element.height = height
+        
+        # Actualizar gráficos
+        if isinstance(self.temp_element.graphicsItem, (QGraphicsRectItem, QGraphicsEllipseItem)):
+            self.temp_element.graphicsItem.setRect(0, 0, width, height)
+            self.temp_element.graphicsItem.setPos(x, y)
+    
+    def update_line_endpoint(self, pos):
+        """Actualiza el punto final de la línea"""
+        if self.temp_element and isinstance(self.temp_element.graphicsItem, QGraphicsLineItem):
+            line = self.temp_element.graphicsItem.line()
+            self.temp_element.graphicsItem.setLine(
+                line.x1(), line.y1(), pos.x(), pos.y()
+            )
+    
+    def select_element(self, element):
+        """Selecciona un elemento y actualiza los paneles"""
+        # Deseleccionar todos
+        for elem in self.elements:
+            if elem.graphicsItem:
+                elem.graphicsItem.setSelected(False)
+        
+        # Seleccionar nuevo elemento
+        if element and element.graphicsItem:
+            element.graphicsItem.setSelected(True)
+            self.selected_elements = [element]
+            self.elementSelected.emit(element)
+            
+            # Actualizar panel de propiedades
+            if hasattr(self.parent(), 'update_properties_panel'):
+                self.parent().update_properties_panel(element)
+    
+    def delete_selected(self):
+        """Elimina los elementos seleccionados"""
+        for element in self.selected_elements[:]:
+            if element.graphicsItem:
+                self.scene.removeItem(element.graphicsItem)
+                self.elements.remove(element)
+        self.selected_elements.clear()
+    
+    def bring_to_front(self):
+        """Trae al frente los elementos seleccionados"""
+        for element in self.selected_elements:
+            if element.graphicsItem:
+                element.graphicsItem.setZValue(max([item.zValue() for item in self.scene.items()] or [0]) + 1)
+    
+    def send_to_back(self):
+        """Envía al fondo los elementos seleccionados"""
+        for element in self.selected_elements:
+            if element.graphicsItem:
+                element.graphicsItem.setZValue(min([item.zValue() for item in self.scene.items()] or [0]) - 1)
+    
+    def group_selected(self):
+        """Agrupa elementos seleccionados"""
+        if len(self.selected_elements) > 1:
+            group = QGraphicsItemGroup()
+            for element in self.selected_elements:
+                if element.graphicsItem:
+                    group.addToGroup(element.graphicsItem)
+            self.scene.addItem(group)
+    
+    def export_to_svg(self, filename):
+        """Exporta el diseño a SVG"""
+        svg = QSvgGenerator()
+        svg.setFileName(filename)
+        svg.setSize(QSize(int(self.scene.width()), int(self.scene.height())))
+        svg.setViewBox(QRectF(0, 0, self.scene.width(), self.scene.height()))
+        
+        painter = QPainter(svg)
+        self.scene.render(painter)
+        painter.end()
+
+class HojaAIPanel(QDockWidget):
+    """Panel Hoja_AI - Lienzo profesional tipo Illustrator con tamaño de celular"""
+    
+    def __init__(self, parent=None):
+        super().__init__("Hoja_AI - Lienzo Profesional (Vista Celular)", parent)
+        self.parent = parent
+        self.phone_width = 360  # Ancho estándar para móviles (360dp en Android)
+        self.phone_height = 640  # Alto estándar para móviles
+        self.setup_ui()
+    
+    def setup_ui(self):
+        main_widget = QWidget()
+        layout = QVBoxLayout(main_widget)
+        layout.setContentsMargins(0, 0, 0, 0)  # Sin márgenes
+        layout.setSpacing(0)  # Sin espaciado
+        
+        # Lienzo principal con tamaño exacto de celular - SIMPLIFICADO
+        self.canvas = AdvancedIllustratorCanvas(self)
+        self.canvas.setFixedSize(self.phone_width, self.phone_height)
+        self.canvas.elementSelected.connect(self.on_element_selected)
+        
+        # Configurar la escena con el tamaño del celular - FONDO BLANCO SIMPLE
+        self.canvas.scene.setSceneRect(0, 0, self.phone_width, self.phone_height)
+        self.canvas.scene.setBackgroundBrush(QBrush(QColor(255, 255, 255)))  # Fondo blanco
+        
+        # QUITAR el marco del teléfono y elementos decorativos
+        # Solo el lienzo limpio
+        
+        layout.addWidget(self.canvas)
+        main_widget.setLayout(layout)
+        self.setWidget(main_widget)
+        
+        # Forzar el tamaño del dock
+        self.setMinimumSize(self.phone_width, self.phone_height)
+        self.setMaximumSize(self.phone_width + 50, self.phone_height + 50)  # Un poco de margen
+    
+    def setup_phone_frame(self):
+        """Añade un marco que simula un teléfono celular"""
+        # Marco exterior
+        phone_frame = QGraphicsRectItem(0, 0, self.phone_width, self.phone_height)
+        phone_frame.setPen(QPen(QColor(80, 80, 80), 2))
+        phone_frame.setBrush(QBrush(QColor(240, 240, 240)))
+        phone_frame.setZValue(-1000)  # Enviar al fondo
+        self.canvas.scene.addItem(phone_frame)
+        
+        # Notch simulado (opcional)
+        notch = QGraphicsRectItem(self.phone_width/2 - 30, 0, 60, 20)
+        notch.setBrush(QBrush(QColor(20, 20, 20)))
+        notch.setPen(QPen(Qt.NoPen))
+        notch.setZValue(-900)
+        self.canvas.scene.addItem(notch)
+        
+        # Botón home simulado
+        home_button = QGraphicsEllipseItem(self.phone_width/2 - 15, self.phone_height - 10, 30, 30)
+        home_button.setBrush(QBrush(QColor(60, 60, 60)))
+        home_button.setPen(QPen(QColor(100, 100, 100)))
+        home_button.setZValue(-900)
+        self.canvas.scene.addItem(home_button)
+    
+    def create_toolbar(self):
+        """Crea una barra de herramientas compacta"""
+        toolbar = QToolBar()
+        toolbar.setIconSize(QSize(20, 20))
+        toolbar.setMovable(False)
+        toolbar.setMaximumHeight(35)
+        
+        # Herramientas esenciales para móvil
+        tools = [
+            ("🔍", "select", "Selección (V)", True),
+            ("⬜", "rectangle", "Rectángulo (R)", False),
+            ("⭕", "ellipse", "Elipse (E)", False),
+            ("🔤", "text", "Texto (T)", False),
+            ("📏", "line", "Línea (L)", False),
+        ]
+        
+        tool_group = QButtonGroup(self)
+        
+        for icon, tool_id, tooltip, checked in tools:
+            btn = QPushButton(icon)
+            btn.setCheckable(True)
+            btn.setChecked(checked)
+            btn.setToolTip(tooltip)
+            btn.setFixedSize(30, 30)
+            btn.clicked.connect(lambda checked, tid=tool_id: self.set_tool(tid))
+            toolbar.addWidget(btn)
+            tool_group.addButton(btn)
+        
+        toolbar.addSeparator()
+        
+        # Controles de zoom específicos para móvil
+        zoom_out_btn = QPushButton("➖")
+        zoom_out_btn.setToolTip("Alejar")
+        zoom_out_btn.clicked.connect(self.zoom_out)
+        zoom_out_btn.setFixedSize(30, 30)
+        toolbar.addWidget(zoom_out_btn)
+        
+        zoom_label = QLabel("100%")
+        zoom_label.setAlignment(Qt.AlignCenter)
+        zoom_label.setFixedWidth(40)
+        toolbar.addWidget(zoom_label)
+        
+        zoom_in_btn = QPushButton("➕")
+        zoom_in_btn.setToolTip("Acercar")
+        zoom_in_btn.clicked.connect(self.zoom_in)
+        zoom_in_btn.setFixedSize(30, 30)
+        toolbar.addWidget(zoom_in_btn)
+        
+        return toolbar
+    
+    def create_status_bar(self):
+        """Crea una barra de estado compacta"""
+        status_bar = QStatusBar()
+        status_bar.setMaximumHeight(25)
+        
+        # Información de posición específica para móvil
+        self.position_label = QLabel(f"X: 0, Y: 0 | {self.phone_width}x{self.phone_height}px")
+        self.position_label.setStyleSheet("font-size: 10px;")
+        status_bar.addWidget(self.position_label)
+        
+        # Indicador de densidad de píxeles (común en Android)
+        density_label = QLabel("@3x")
+        density_label.setStyleSheet("font-size: 10px; color: #666;")
+        status_bar.addPermanentWidget(density_label)
+        
+        return status_bar
+    
+    def set_tool(self, tool_id):
+        """Establece la herramienta actual"""
+        self.canvas.set_tool(tool_id)
+    
+    def zoom_in(self):
+        """Acercar zoom manteniendo proporciones de celular"""
+        current_scale = self.canvas.transform().m11()
+        if current_scale < 3.0:  # Límite máximo de zoom
+            self.canvas.scale(1.2, 1.2)
+            self.update_zoom_display()
+    
+    def zoom_out(self):
+        """Alejar zoom manteniendo proporciones de celular"""
+        current_scale = self.canvas.transform().m11()
+        if current_scale > 0.3:  # Límite mínimo de zoom
+            self.canvas.scale(0.8, 0.8)
+            self.update_zoom_display()
+    
+    def update_zoom_display(self):
+        """Actualiza la visualización del zoom"""
+        zoom_level = int(self.canvas.transform().m11() * 100)
+        # Buscar y actualizar la etiqueta de zoom en la toolbar
+        for widget in self.findChildren(QLabel):
+            if widget.text().endswith('%'):
+                widget.setText(f"{zoom_level}%")
+                break
+    
+    def on_element_selected(self, element):
+        """Maneja la selección de elementos actualizando la posición"""
+        if element:
+            x, y = int(element.x), int(element.y)
+            # Actualizar posición si es necesario
+            pass
+
+
+
 class IllustratorWindow(QMainWindow):
     closed = Signal()
     
@@ -2957,11 +3139,92 @@ class IllustratorWindow(QMainWindow):
         self.setup_shortcuts()
 
         self.setup_enhanced_docks()
-
+        self.setup_hoja_ai()
         
         self.create_menu_bar()
         self.setup_language_specific_features()
         self.setup_context_menu()
+    def setup_hoja_ai(self):
+        """Configura el panel Hoja_AI como centro de la interfaz"""
+        # Remover el widget inicial del emulador
+        if hasattr(self, 'emulator_container'):
+            self.tab_widget.removeTab(0)
+        
+        # Crear y configurar Hoja_AI
+        self.hoja_ai_panel = HojaAIPanel(self)
+        
+        # Hacerlo el widget central principal
+        central_widget = QWidget()
+        layout = QVBoxLayout(central_widget)
+        layout.addWidget(self.hoja_ai_panel)
+        self.setCentralWidget(central_widget)
+        
+        # Conectar señales entre paneles
+        self.connect_panels()
+
+    def connect_panels(self):
+        """Conecta Hoja_AI con los demás paneles"""
+        try:
+            if (hasattr(self, 'effects_panel') and 
+                hasattr(self.hoja_ai_panel, 'canvas') and 
+                hasattr(self.hoja_ai_panel.canvas, 'elementSelected') and
+                hasattr(self.effects_panel, 'on_element_selected')):
+                
+                self.hoja_ai_panel.canvas.elementSelected.connect(self.effects_panel.on_element_selected)
+                print("Conexión EffectsPanel establecida correctamente")
+        except Exception as e:
+            print(f"Error conectando EffectsPanel: {e}")
+        
+        try:
+            if hasattr(self, 'illustrator_tools_panel'):
+                # Conectar herramientas de Illustrator con Hoja_AI
+                # Agrega aquí las conexiones necesarias
+                pass
+        except Exception as e:
+            print(f"Error conectando IllustratorToolsPanel: {e}")
+    
+    def toggle_hoja_ai(self):
+        """Alternar visibilidad de Hoja_AI"""
+        if self.hoja_ai_panel.isVisible():
+            self.hoja_ai_panel.hide()
+        else:
+            self.hoja_ai_panel.show()
+            self.hoja_ai_panel.raise_()
+
+    # Agregar estos métodos a la clase existente
+    def setup_hoja_ai_in_current_class(self):
+        """Integra Hoja_AI en la clase IllustratorWindow existente"""
+        
+        # Reemplazar el contenido del emulador por Hoja_AI
+        if hasattr(self, 'emulator_layout'):
+            # Limpiar el layout existente
+            for i in reversed(range(self.emulator_layout.count())): 
+                self.emulator_layout.itemAt(i).widget().setParent(None)
+            
+            # Agregar Hoja_AI
+            self.hoja_ai = AdvancedIllustratorCanvas(self)
+            self.emulator_layout.addWidget(self.hoja_ai)
+            
+            # Actualizar el título de la pestaña
+            self.tab_widget.setTabText(0, "Hoja_AI")
+            self.tab_widget.setTabToolTip(0, "Lienzo profesional de diseño vectorial")
+            
+            # Conectar con otros paneles
+            self.hoja_ai.elementSelected.connect(self.on_canvas_element_selected)
+
+    def on_canvas_element_selected(self, element):
+        """Maneja la selección de elementos en el canvas"""
+        # Actualizar panel de propiedades
+        if hasattr(self, 'properties_panel'):
+            self.update_properties_panel(element)
+        
+        # Actualizar panel de efectos
+        if hasattr(self, 'effects_panel'):
+            self.effects_panel.update_for_element(element)
+        
+        # Actualizar panel de capas
+        if hasattr(self, 'layers_list'):
+            self.update_layers_selection(element)
     def create_illustrator_tools_panel(self):
         """Crea el panel de herramientas de Illustrator CORREGIDO"""
         self.illustrator_tools_panel = IllustratorToolsPanel(self)
@@ -3036,7 +3299,7 @@ class IllustratorWindow(QMainWindow):
     def update_design_preview(self):
         """Actualiza la vista previa del diseño"""
         if hasattr(self, 'design_canvas'):
-            self.design_canvas.update()
+            self.hoja_ai_canvas.update()
     def setup_context_menu(self):
         """Configura el menú contextual para el explorador de archivos"""
         self.file_tree.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -3293,7 +3556,24 @@ class IllustratorWindow(QMainWindow):
         """Maneja el cierre de ventanas"""
         if window_key in self.open_windows:
             del self.open_windows[window_key]
-
+    def show_xml_designer(self, parent_widget, xml_content, file_path):
+        """NUEVA versión - Abre XML en Hoja_AI con editor dual"""
+        layout = parent_widget.layout()
+        
+        splitter = QSplitter(Qt.Horizontal)
+      
+        xml_editor = EnhancedCodeEditor(theme="dark")
+        xml_editor.setPlainText(xml_content)
+        xml_editor.set_highlighter(file_path)
+        
+        design_view = AdvancedIllustratorCanvas(self)
+        design_view.set_xml_content(xml_content) 
+        
+        splitter.addWidget(xml_editor)
+        splitter.addWidget(design_view)
+        splitter.setSizes([400, 400])
+        
+        layout.addWidget(splitter)
     def setup_workspace(self):
         self.current_preset = "Minimal"  
         self.tool_panel_position = "left"
@@ -3316,20 +3596,6 @@ class IllustratorWindow(QMainWindow):
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
         self.tab_widget.currentChanged.connect(self.tab_changed)
-        
-        self.emulator_container = QWidget()
-        self.emulator_layout = QVBoxLayout(self.emulator_container)
-        
-        self.initial_message = QLabel("Haga doble clic en un archivo en el explorador para abrirlo")
-        self.initial_message.setAlignment(Qt.AlignCenter)
-        self.initial_message.setStyleSheet("font-size: 16px; color: #666; padding: 50px;")
-        self.emulator_layout.addWidget(self.initial_message)
-        
-        self.design_canvas = None
-        self.phone_frame = None
-        
-        self.tab_widget.addTab(self.emulator_container, "Emulador")
-        self.tab_widget.setTabToolTip(0, "Vista de emulación móvil")
         
         self.main_layout.addWidget(self.tab_widget)
         
@@ -3681,6 +3947,7 @@ class IllustratorWindow(QMainWindow):
 
         self.new_file_shortcut = QShortcut(QKeySequence("Ctrl+N"), self)
         self.new_file_shortcut.activated.connect(self.new_file_with_template)
+
     def create_menu_bar(self):
         menubar = self.menuBar()
         menubar.clear()
@@ -4208,8 +4475,8 @@ class IllustratorWindow(QMainWindow):
         for tid, btn in self.tool_buttons.items():
             btn.setChecked(tid == tool_id)
         
-        if self.design_canvas:
-            self.design_canvas.setTool(tool_id)
+        if self.hoja_ai_canvas:
+           self.hoja_ai_canvas.setTool(tool_id)
 
     def choose_color(self):
         color = QColorDialog.getColor()
@@ -4318,14 +4585,6 @@ class IllustratorWindow(QMainWindow):
             tab_widget = QWidget()
             layout = QVBoxLayout(tab_widget)
             layout.setContentsMargins(0, 0, 0, 0)
-
-            if file_path.lower().endswith('.xml'):
-                self.show_xml_designer(tab_widget, content, file_path)
-            else:
-                text_edit = EnhancedCodeEditor(theme="dark")
-                text_edit.setPlainText(content)
-                text_edit.set_highlighter(file_path)
-                layout.addWidget(text_edit)
             
             tab_widget.setLayout(layout)
 
@@ -4345,30 +4604,6 @@ class IllustratorWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo abrir el archivo:\n{str(e)}")
  
-    def show_xml_designer(self, parent_widget, xml_content, file_path):
-        """Muestra el diseñador para archivos XML"""
-        layout = parent_widget.layout()
-
-        splitter = QSplitter(Qt.Horizontal)
-
-        xml_editor = EnhancedCodeEditor(theme="dark")
-        xml_editor.setPlainText(xml_content)
-        xml_editor.set_highlighter(file_path)
-
-        preview_widget = QWidget()
-        preview_layout = QVBoxLayout(preview_widget)
-
-        preview_label = QLabel("Vista previa del layout XML\n(Emulador Android)")
-        preview_label.setAlignment(Qt.AlignCenter)
-        preview_label.setStyleSheet("font-size: 14px; color: #666; padding: 50px; background-color: #2C2C2C; color: white;")
-        preview_layout.addWidget(preview_label)
-        
-        splitter.addWidget(xml_editor)
-        splitter.addWidget(preview_widget)
-        splitter.setSizes([400, 400]) 
-        
-        layout.addWidget(splitter)
-
     def show_enhanced_context_menu(self, editor, pos):
         """Menú contextual mejorado con opciones de editor"""
         menu = QMenu(self)
@@ -4575,19 +4810,7 @@ class IllustratorWindow(QMainWindow):
             if file_path in self.open_files:
                 del self.open_files[file_path]
 
-    def setup_phone_canvas(self):
-        """Configura el canvas para que se vea como una pantalla de celular"""
-        self.phone_width = 360
-        self.phone_height = 640
-        
-        if self.design_canvas:
-            self.design_canvas.setStyleSheet("""
-                QGraphicsView {
-                    background-color: #2C2C2C;
-                    border: none;
-                }
-            """)
-
+  
     def closeEvent(self, event):
         """Maneja el cierre de la ventana"""
        
