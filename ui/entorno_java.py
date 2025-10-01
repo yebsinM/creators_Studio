@@ -2940,38 +2940,46 @@ class HojaAIPanel(QDockWidget):
     """Panel Hoja_AI - Lienzo profesional tipo Illustrator con tamaño de celular"""
     
     def __init__(self, parent=None):
-        super().__init__("Hoja_AI - Lienzo Profesional (Vista Celular)", parent)
+        super().__init__(parent)
         self.parent = parent
-        self.phone_width = 360  # Ancho estándar para móviles (360dp en Android)
+        self.phone_width = 360  # Ancho estándar para móviles
         self.phone_height = 640  # Alto estándar para móviles
         self.setup_ui()
     
     def setup_ui(self):
         main_widget = QWidget()
         layout = QVBoxLayout(main_widget)
-        layout.setContentsMargins(0, 0, 0, 0)  # Sin márgenes
-        layout.setSpacing(0)  # Sin espaciado
-        
-        # Lienzo principal con tamaño exacto de celular - SIMPLIFICADO
+        layout.setContentsMargins(0, 0, 0, 0)  # Márgenes pequeños
+        layout.setSpacing(0)
+         # Contenedor para centrar el lienzo
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setAlignment(Qt.AlignCenter) 
+        # Lienzo principal - EXPANSIVO
         self.canvas = AdvancedIllustratorCanvas(self)
-        self.canvas.setFixedSize(self.phone_width, self.phone_height)
+        
+        # Configurar el canvas para expansión total
+        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.canvas.setMinimumSize(400, 600)  # Tamaño mínimo razonable
+        
         self.canvas.elementSelected.connect(self.on_element_selected)
         
-        # Configurar la escena con el tamaño del celular - FONDO BLANCO SIMPLE
-        self.canvas.scene.setSceneRect(0, 0, self.phone_width, self.phone_height)
-        self.canvas.scene.setBackgroundBrush(QBrush(QColor(255, 255, 255)))  # Fondo blanco
-        
-        # QUITAR el marco del teléfono y elementos decorativos
-        # Solo el lienzo limpio
+        # Configurar la escena del canvas
+        self.canvas.scene.setBackgroundBrush(QBrush(QColor(255, 255, 255)))
         
         layout.addWidget(self.canvas)
         main_widget.setLayout(layout)
         self.setWidget(main_widget)
         
-        # Forzar el tamaño del dock
-        self.setMinimumSize(self.phone_width, self.phone_height)
-        self.setMaximumSize(self.phone_width + 50, self.phone_height + 50)  # Un poco de margen
+        # El widget principal también expansivo
+        main_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    def sizeHint(self):
+        """Sugerir un tamaño grande para priorizar la expansión"""
+        return QSize(800, 600)
     
+    def minimumSizeHint(self):
+        """Tamaño mínimo permitido"""
+        return QSize(400, 500)
     def setup_phone_frame(self):
         """Añade un marco que simula un teléfono celular"""
         # Marco exterior
@@ -3170,27 +3178,63 @@ class IllustratorWindow(QMainWindow):
         self.create_menu_bar()  # Esto ahora solo agregará los actions al menú
         self.setup_language_specific_features()
         self.setup_context_menu()
+   # 3. MODIFICAR EL MÉTODO setup_initial_layout() PARA USAR SPLITTERS DINÁMICOS
     def setup_initial_layout(self):
-        """Configura el layout inicial por defecto al abrir un proyecto"""
+        """Configura el layout inicial con Hoja_AI como panel central verdadero"""
         
-        # 1. PRIMERO LIMPIAR DOCK EXISTENTES
+        # 1. LIMPIAR DOCK EXISTENTES
         existing_docks = self.findChildren(QDockWidget)
         for dock in existing_docks:
             self.removeDockWidget(dock)
         
-        # 2. CONFIGURAR HOJA_AI COMO CENTRAL
-        self.setup_hoja_ai()
+        # 2. CREAR HOJA_AI COMO DOCK WIDGET CENTRAL
+        self.hoja_ai_panel = HojaAIPanel(self)
         
-        # 3. CONFIGURAR PANELES INICIALES
-        # Explorador de archivos a la IZQUIERDA
+        # 3. AGREGAR PANELES EN SUS ÁREAS CORRECTAS
+        # Panel izquierdo (Explorador) - ÁREA IZQUIERDA
         self.addDockWidget(Qt.LeftDockWidgetArea, self.file_explorer_panel)
-        self.file_explorer_panel.setVisible(True)
         
-        # Chat IA a la DERECHA  
+        # Panel central (Hoja_AI) - ÁREA CENTRAL (usando RightDockWidgetArea como principal)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.hoja_ai_panel)
+        
+        # Panel derecho (Chat IA) - ÁREA DERECHA, PERO EN FORMA DE TAB O SPLIT
         self.addDockWidget(Qt.RightDockWidgetArea, self.ai_panel)
+        
+        # 4. CONFIGURAR LA ORGANIZACIÓN CON TABS O SPLITS
+        # Primero hacer que Hoja_AI ocupe la mayor parte del espacio central
+        self.splitDockWidget(self.hoja_ai_panel, self.ai_panel, Qt.Horizontal)
+        
+        # 5. AJUSTAR TAMAÑOS PARA QUE HOJA_AI SEA EL PRINCIPAL
+        # Hoja_AI ocupa 70% del espacio, Chat IA 30%
+        total_width = self.width()
+        if total_width > 0:
+            hoja_ai_width = int(total_width * 0.7)
+            ai_width = int(total_width * 0.3)
+            
+            # Actualizar tamaños
+            QTimer.singleShot(100, lambda: self.resizeDocks([self.hoja_ai_panel, self.ai_panel], 
+                                                        [hoja_ai_width, ai_width], Qt.Horizontal))
+        
+        # 6. CONFIGURAR TAMAÑOS MÍNIMOS
+        self.file_explorer_panel.setMaximumWidth(400)
+        self.file_explorer_panel.setMinimumWidth(250)
+        
+        self.ai_panel.setMaximumWidth(500)
+        self.ai_panel.setMinimumWidth(300)
+        
+        self.hoja_ai_panel.setMinimumSize(600, 500)
+        
+        # 7. CONFIGURAR VISIBILIDAD
+        self.file_explorer_panel.setVisible(True)
+        self.hoja_ai_panel.setVisible(True)
         self.ai_panel.setVisible(True)
         
-        # 4. OCULTAR LOS DEMÁS PANELES INICIALMENTE
+        # 8. ACTUALIZAR ESTADOS
+        self.explorer_panel_action.setChecked(True)
+        self.hoja_ai_action.setChecked(True)
+        self.ai_panel_action.setChecked(True)
+        
+        # 8. OCULTAR LOS DEMÁS PANELES INICIALMENTE
         self.tool_panel.setVisible(False)
         self.layers_panel.setVisible(False)
         self.color_panel.setVisible(False)
@@ -3200,20 +3244,27 @@ class IllustratorWindow(QMainWindow):
         self.illustrator_tools_panel.setVisible(False)
         self.effects_panel.setVisible(False)
         
-        # 5. ACTUALIZAR ESTADO DE LOS BOTONES DEL MENÚ
-        self.explorer_panel_action.setChecked(True)
-        self.ai_panel_action.setChecked(True)
         self.tool_panel_action.setChecked(False)
         self.layers_panel_action.setChecked(False)
         self.color_panel_action.setChecked(False)
         self.illustrator_tools_action.setChecked(False)
         self.effects_panel_action.setChecked(False)
+    def resizeEvent(self, event):
+        """Maneja el redimensionamiento de la ventana principal"""
+        super().resizeEvent(event)
         
-        # 6. CONFIGURAR TAMAÑOS INICIALES
-        self.resizeDocks([self.file_explorer_panel], [300], Qt.Horizontal)
-        self.resizeDocks([self.ai_panel], [350], Qt.Horizontal)
-        
-        print("✅ Layout inicial configurado: Explorador(←), Hoja_AI(🎯), Chat_IA(→)")
+        # Asegurar que Hoja_AI se expanda correctamente cuando la ventana cambie de tamaño
+        if hasattr(self, 'central_splitter') and self.central_splitter:
+            # Recalcular tamaños manteniendo las proporciones relativas
+            total_width = self.width()
+            if total_width > 0:
+                left_width = max(250, min(350, total_width * 0.2))
+                right_width = max(250, min(350, total_width * 0.2))
+                center_width = total_width - left_width - right_width - self.central_splitter.handleWidth() * 2
+                
+                if center_width > self.hoja_ai_widget.phone_width:  # Asegurar tamaño mínimo
+                    sizes = [int(left_width), int(center_width), int(right_width)]
+                    self.central_splitter.setSizes(sizes)
     def setup_hoja_ai(self):
         """Configura el panel Hoja_AI como centro de la interfaz"""
         # Remover el widget inicial del emulador
@@ -3657,6 +3708,7 @@ class IllustratorWindow(QMainWindow):
             "Development": WorkspacePreset("Development", "right", ["Tools", "AI Assistant"])
         }
 
+    # MODIFICAR el método setup_ui para usar el nuevo enfoque
     def setup_ui(self):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -3667,8 +3719,7 @@ class IllustratorWindow(QMainWindow):
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
         self.tab_widget.currentChanged.connect(self.tab_changed)
         
-        self.main_layout.addWidget(self.tab_widget)
-        
+        # Crear paneles primero
         self.create_tool_panel()
         self.create_layers_panel()
         self.create_color_panel()
@@ -3677,37 +3728,42 @@ class IllustratorWindow(QMainWindow):
         self.create_paragraph_panel()
         self.create_ai_panel()
         self.create_file_explorer_panel()
+        self.create_illustrator_tools_panel()
+        self.create_effects_panel()
         
-        self.create_menu_bar()  # Esto crea los actions
+        # Crear menú después de que todos los paneles existan
+        self.create_menu_bar()
+        
+        # Configurar layout inicial CON Hoja_AI como widget central
+        self.setup_initial_layout()
+        
+        # Conectar señales
+        self.connect_hoja_ai_signals()
+        
+        self.statusBar().showMessage("Ready | Hoja_AI activa")
 
-        # Inicializar los actions si aún no existen
-        if not hasattr(self, 'tool_panel_action'):
-            self.tool_panel_action = QAction("Panel de Herramientas", self)
-            self.tool_panel_action.setCheckable(True)
-            self.tool_panel_action.setChecked(False)
+    def create_hoja_ai_panel(self):
+        """Crea el panel Hoja_AI como un QDockWidget normal pero con visibilidad forzada"""
+        self.hoja_ai_panel = QDockWidget("Hoja_AI - Lienzo Profesional", self)
+        self.hoja_ai_panel.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | 
+                                        Qt.TopDockWidgetArea | Qt.BottomDockWidgetArea)
         
-        if not hasattr(self, 'layers_panel_action'):
-            self.layers_panel_action = QAction("Panel de Capas", self)
-            self.layers_panel_action.setCheckable(True)
-            self.layers_panel_action.setChecked(False)
+        # Crear el contenido de Hoja_AI
+        hoja_ai_content = HojaAIPanel(self)
+        self.hoja_ai_panel.setWidget(hoja_ai_content)
         
-        if not hasattr(self, 'color_panel_action'):
-            self.color_panel_action = QAction("Panel de Colores", self)
-            self.color_panel_action.setCheckable(True)
-            self.color_panel_action.setChecked(False)
+        # Configurar como los demás paneles pero visible por defecto
+        self.hoja_ai_panel.setFeatures(
+            QDockWidget.DockWidgetMovable | 
+            QDockWidget.DockWidgetClosable |
+            QDockWidget.DockWidgetFloatable
+        )
         
-        if not hasattr(self, 'ai_panel_action'):
-            self.ai_panel_action = QAction("Panel de IA", self)
-            self.ai_panel_action.setCheckable(True)
-            self.ai_panel_action.setChecked(True)
+        # FORZAR VISIBILIDAD INICIAL
+        self.hoja_ai_panel.setVisible(True)
         
-        if not hasattr(self, 'explorer_panel_action'):
-            self.explorer_panel_action = QAction("Explorador de Archivos", self)
-            self.explorer_panel_action.setCheckable(True)
-            self.explorer_panel_action.setChecked(True)
-
-        self.statusBar().showMessage("Ready | Zoom: 100%")
-
+        # Añadir al área central como un dock normal
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.hoja_ai_panel)
     def setup_java_features(self):
         self.setWindowTitle(f"Creators Studio - {self.project_name} [Java]")
         if hasattr(self, 'ai_panel'):
@@ -4152,6 +4208,11 @@ class IllustratorWindow(QMainWindow):
         view_menu = menubar.addMenu("Ver")
         panels_menu = view_menu.addMenu("Paneles")
      
+        self.hoja_ai_action = QAction("Hoja_AI - Lienzo", self)
+        self.hoja_ai_action.setCheckable(True)
+        self.hoja_ai_action.setChecked(True)  # Visible por defecto
+        self.hoja_ai_action.triggered.connect(self.toggle_hoja_ai_panel)
+        panels_menu.addAction(self.hoja_ai_action)
 
         self.illustrator_tools_action = QAction("Herramientas Illustrator", self)
         self.illustrator_tools_action.setCheckable(True)
@@ -4302,7 +4363,47 @@ class IllustratorWindow(QMainWindow):
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
+    # 2. AGREGAR EL MÉTODO TOGGLE PARA HOJA_AI
+    def toggle_hoja_ai_panel(self):
+        """Alternar visibilidad del panel Hoja_AI"""
+        if hasattr(self, 'hoja_ai_panel'):
+            if self.hoja_ai_panel.isVisible():
+                self.hoja_ai_panel.setVisible(False)
+                self.hoja_ai_action.setChecked(False)
+            else:
+                self.hoja_ai_panel.setVisible(True)
+                self.hoja_ai_action.setChecked(True)
+                # Asegurar que Hoja_AI ocupe el espacio central
+                self.hoja_ai_panel.raise_()
+    def dockLocationChanged(self, area):
+        """Se llama cuando un dock es movido a otra área"""
+        # Asegurar que Hoja_AI siempre tenga espacio para expandirse
+        if hasattr(self, 'hoja_ai_panel') and self.hoja_ai_panel.isVisible():
+            # Forzar actualización del layout
+            QTimer.singleShot(100, self.update_dock_layout)
 
+    def update_dock_layout(self):
+        """Actualizar el layout de los docks para optimizar el espacio"""
+        # Esta función se puede expandir para lógica más compleja de layout
+        pass
+    def connect_hoja_ai_signals(self):
+        """Conecta las señales de Hoja_AI con otros paneles"""
+        if hasattr(self, 'hoja_ai_widget') and hasattr(self.hoja_ai_widget, 'canvas'):
+            # Conectar selección de elementos con el panel de efectos
+            if hasattr(self, 'effects_panel'):
+                try:
+                    self.hoja_ai_widget.canvas.elementSelected.connect(self.effects_panel.on_element_selected)
+                    print("✅ Hoja_AI conectada con EffectsPanel")
+                except Exception as e:
+                    print(f"❌ Error conectando Hoja_AI con EffectsPanel: {e}")
+            
+            # Conectar con herramientas de Illustrator
+            if hasattr(self, 'illustrator_tools_panel'):
+                try:
+                    # Conectar la selección de herramientas
+                    pass
+                except Exception as e:
+                    print(f"❌ Error conectando Hoja_AI con IllustratorTools: {e}")
     def new_project(self):
         """Crea un nuevo proyecto"""
         QMessageBox.information(self, "Nuevo Proyecto", "Funcionalidad de nuevo proyecto en desarrollo")
@@ -4376,17 +4477,17 @@ class IllustratorWindow(QMainWindow):
             self.effects_panel.activateWindow()
             self.effects_panel_action.setChecked(True)
 
-    # Actualizar los presets de workspace para incluir los nuevos paneles
+        # Actualizar los presets de workspace para incluir los nuevos paneles
     def create_workspace_presets(self):
         self.workspace_presets = {
             "Default": WorkspacePreset("Default", "left", 
-                                    ["IllustratorTools", "Layers", "AI Assistant", "Effects"]),
-            "Design": WorkspacePreset("Design", "left", 
-                                    ["IllustratorTools", "Effects", "Color", "Layers"]),
-            "Development": WorkspacePreset("Development", "right", 
-                                        ["IllustratorTools", "AI Assistant", "File Explorer"]),
+                                    ["Hoja_AI", "File Explorer", "AI Assistant"]),
             "Minimal": WorkspacePreset("Minimal", "left", 
-                                    ["File Explorer", "AI Assistant"])
+                                    ["Hoja_AI", "File Explorer"]),
+            "Design": WorkspacePreset("Design", "left", 
+                                    ["Hoja_AI", "IllustratorTools", "Effects", "Color"]),
+            "Development": WorkspacePreset("Development", "right", 
+                                        ["Hoja_AI", "AI Assistant", "File Explorer"])
         }
     def toggle_tool_panel(self):
         self.tool_panel.setVisible(self.tool_panel_action.isChecked())
@@ -4557,16 +4658,34 @@ class IllustratorWindow(QMainWindow):
                 "Character": self.character_panel,
                 "Paragraph": self.paragraph_panel,
                 "AI Assistant": self.ai_panel,
-                "File Explorer": self.file_explorer_panel
+                "File Explorer": self.file_explorer_panel,
+                "IllustratorTools": self.illustrator_tools_panel,
+                "Effects": self.effects_panel
             }
             
+            # Ocultar todos primero (excepto Hoja_AI que es central)
             for panel_name, panel in all_panels.items():
                 if panel:
                     panel.setVisible(False)
 
+            # Mostrar solo los del preset
             for panel_name in preset.panels:
                 if panel_name in all_panels and all_panels[panel_name]:
                     all_panels[panel_name].setVisible(True)
+            
+            # Hoja_AI siempre visible en el centro
+            if hasattr(self, 'hoja_ai_widget'):
+                self.hoja_ai_widget.setVisible(True)
+            
+            # Actualizar estados de los actions
+            self.hoja_ai_action.setChecked(True)  # Siempre checked pues es central
+            self.explorer_panel_action.setChecked(self.file_explorer_panel.isVisible())
+            self.ai_panel_action.setChecked(self.ai_panel.isVisible())
+            self.tool_panel_action.setChecked(self.tool_panel.isVisible())
+            self.layers_panel_action.setChecked(self.layers_panel.isVisible())
+            self.color_panel_action.setChecked(self.color_panel.isVisible())
+            self.illustrator_tools_action.setChecked(self.illustrator_tools_panel.isVisible())
+            self.effects_panel_action.setChecked(self.effects_panel.isVisible())
     def set_tool(self, tool_id):
         self.current_tool = tool_id
         for tid, btn in self.tool_buttons.items():
