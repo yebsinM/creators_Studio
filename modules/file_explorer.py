@@ -73,14 +73,11 @@ class FileExplorerContextMenu(QMenu):
         if index.isValid():
             file_path = self.file_model.filePath(index)
             
-            # Verificar que es un archivo y no una carpeta
             if os.path.isfile(file_path):
                 try:
-                    # OPCIÓN 1: Si tu ventana principal tiene un editor
                     if hasattr(self.parent_widget, 'code_editor'):
                         self.open_in_existing_editor(file_path)
-                    
-                    # OPCIÓN 2: Si necesitas crear un nuevo editor
+  
                     else:
                         self.open_in_new_editor(file_path)
                         
@@ -92,14 +89,11 @@ class FileExplorerContextMenu(QMenu):
     def open_in_existing_editor(self, file_path):
         """Abre el archivo en un editor existente"""
         try:
-            # Leer el contenido del archivo
             with open(file_path, 'r', encoding='utf-8') as file:
                 content = file.read()
-            
-            # Establecer el contenido en el editor
+
             self.parent_widget.code_editor.setPlainText(content)
-            
-            # Configurar resaltado de sintaxis si está disponible
+
             if hasattr(self.parent_widget.code_editor, 'set_highlighter'):
                 self.parent_widget.code_editor.set_highlighter(file_path)
             

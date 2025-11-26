@@ -45,7 +45,6 @@ class DeepSeekWorker(QThread):
                 trust_remote_code=True
             )
             
-            # PROMPT LIMPIO - solo la instrucción esencial
             prompt = f"Pregunta: {self.message}\n\nRespuesta:"
             
             inputs = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
@@ -61,12 +60,11 @@ class DeepSeekWorker(QThread):
                 )  
             
             response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            
-            # EXTRAER SOLO LA RESPUESTA (lo que viene después de "Respuesta:")
+
             if "Respuesta:" in response:
                 response = response.split("Respuesta:")[1].strip()
             
-            return response  # Sin prefijos ni emojis
+            return response 
                 
         except Exception as e:
             return f"Error: {str(e)}"
@@ -118,7 +116,6 @@ class EnhancedAIChatPanel(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
         
-        # NAVEGACIÓN
         nav_layout = QHBoxLayout()
         
         self.back_btn = QPushButton("◀")
@@ -160,7 +157,6 @@ class EnhancedAIChatPanel(QWidget):
         
         layout.addLayout(nav_layout)
 
-        # HISTORIAL DE CHAT
         self.chat_history = QTextEdit()
         self.chat_history.setReadOnly(True)
         self.chat_history.setPlaceholderText("Escribe comandos como: 'crea un archivo.txt', 'lista los archivos', 'cambia a /ruta'...")
@@ -191,7 +187,7 @@ class EnhancedAIChatPanel(QWidget):
         """)
         layout.addWidget(self.chat_history)
         
-        # ENTRADA DE USUARIO
+
         input_container = QWidget()
         input_container.setStyleSheet("background-color: #252526; border-radius: 8px; padding: 4px;")
         input_layout = QHBoxLayout(input_container)
@@ -239,7 +235,6 @@ class EnhancedAIChatPanel(QWidget):
         
         layout.addWidget(input_container)
 
-        # ACCIONES RÁPIDAS
         quick_actions_container = QWidget()
         quick_actions_container.setStyleSheet("background-color: #252526; border-radius: 8px; padding: 4px;")
         quick_actions_layout = QHBoxLayout(quick_actions_container)
@@ -277,7 +272,6 @@ class EnhancedAIChatPanel(QWidget):
         
         chat_widget.setLayout(layout)
         
-        # ✅ CORRECCIÓN: Configurar el layout principal del widget
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(chat_widget)
@@ -292,9 +286,8 @@ class EnhancedAIChatPanel(QWidget):
         
         timestamp = QDateTime.currentDateTime().toString("HH:mm")
         
-        # Solo el usuario tiene burbuja de chat
+        
         if is_user:
-            # BURBUJA para el usuario (derecha)
             formatted_message = f"""
             <div style="margin: 10px 5px; font-family: 'Segoe UI', Arial, sans-serif;">
                 <div style="display: flex; justify-content: flex-end;">
@@ -315,7 +308,6 @@ class EnhancedAIChatPanel(QWidget):
             </div>
             """
         else:
-            # Texto normal para IA/Sistema (izquierda, sin burbuja)
             formatted_message = f"""
             <div style="margin: 5px 5px; font-family: 'Segoe UI', Arial, sans-serif;">
                 <div style="display: flex; align-items: center; margin-bottom: 3px;">
@@ -354,7 +346,6 @@ class EnhancedAIChatPanel(QWidget):
         self._add_formatted_message("Tu", message, "#1a1a33", is_user=True)
 
     def add_ai_response(self, message):
-        # Limpiar el texto de la IA antes de mostrar
         clean_message = self.clean_ai_response(message)
         self._add_formatted_message("IA", clean_message, "#1a331a", is_user=False)
 
@@ -426,16 +417,12 @@ class EnhancedAIChatPanel(QWidget):
         if not user_text:
             return
             
-        # LIMPIAR mensajes de sistema automáticos
         self.clear_system_message()
-        
-        # Añadir TU mensaje como burbuja de chat
+
         self.add_user_message(user_text)
         self.user_input.clear()
         
         self.last_command = user_text
-        
-        # Procesar con IA
         self.process_with_ai(user_text)
 
     def clear_system_message(self):
@@ -876,10 +863,8 @@ class EnhancedAIChatPanel(QWidget):
         self.conversation_history.append({"role": "user", "content": self.last_command})
         self.conversation_history.append({"role": "assistant", "content": response})
         
-        # Mostrar respuesta directamente (ya viene limpia del worker)
         self.add_ai_response(response)
-        
-        # Procesar comandos especiales
+
         self.process_ai_commands(response)
 
     def handle_ai_error(self, error_message):

@@ -17,8 +17,7 @@ class ElementsWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
-        
-        # Barra de búsqueda
+
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Buscar elementos...")
@@ -31,13 +30,11 @@ class ElementsWindow(QMainWindow):
         search_layout.addWidget(clear_btn)
         
         layout.addLayout(search_layout)
-        
-        # Lista de elementos
+ 
         self.elements_list = QListWidget()
         self.elements_list.itemDoubleClicked.connect(self.element_double_clicked)
         layout.addWidget(self.elements_list)
-        
-        # Botones de acción
+
         button_layout = QHBoxLayout()
         add_btn = QPushButton("Añadir al Diseño")
         add_btn.clicked.connect(self.add_to_design)
@@ -118,8 +115,7 @@ class ElementsWindow(QMainWindow):
         """Añade el elemento al canvas"""
         if self.parent and hasattr(self.parent, 'hoja_ai_panel'):
             canvas = self.parent.hoja_ai_panel.canvas
-            
-            # Crear elemento básico en el centro del canvas
+
             rect = canvas.scene.sceneRect()
             center_x = rect.center().x()
             center_y = rect.center().y()

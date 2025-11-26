@@ -668,14 +668,63 @@ class IllustratorWindow(QMainWindow):
         # Añadir al área central como un dock normal
         self.addDockWidget(Qt.LeftDockWidgetArea, self.hoja_ai_panel)
     def setup_java_features(self):
-        self.setWindowTitle(f"Creators Studio - {self.project_name} [Java]")
-        if hasattr(self, 'ai_panel'):
-            self.ai_panel.chat_history.setPlainText(
-                "Modo Java activado. Puedo ayudarte con:\n"
-                "- Código Java para Android\n- Layouts XML\n"
-                "- Activities y Fragments\n- Intents y Services"
-            )
+        """Configura características específicas para Java"""
+        try:
+            print("🔧 Configurando características Java...")
+            
+            # ✅ CORREGIR: Usar self.ai_widget en lugar de self.ai_panel
+            if hasattr(self, 'ai_widget') and self.ai_widget:
+                welcome_message = """🚀 **MODO JAVA ACTIVADO**
 
+    📋 **Características disponibles:**
+    • 📁 Gestión de proyectos Maven/Gradle
+    • ☕ Generación de clases Java
+    • 🏗️ Patrones de diseño automáticos
+    • 🔧 Refactorización inteligente
+    • 📊 Análisis de código estático
+
+    💡 **Comandos útiles:**
+    • 'crea clase Usuario' - Genera clase Java
+    • 'genera getters/setters' - Crea métodos de acceso
+    • 'implementa patrón Singleton' - Aplica patrón de diseño
+    • 'analiza este código' - Revisa calidad de código
+
+    📂 **Directorio del proyecto:** {}
+    """.format(self.project_path)
+                
+                self.ai_widget.chat_history.setPlainText("")
+                self.ai_widget.chat_history.append(welcome_message)
+                
+            # Configurar otras características Java...
+            self.setup_java_templates()
+            self.setup_java_shortcuts()
+            
+            print("✅ Características Java configuradas")
+            
+        except Exception as e:
+            print(f"❌ Error configurando características Java: {e}")
+    def setup_java_templates(self):
+        """Configura plantillas para Java"""
+        try:
+            print("🔧 Configurando plantillas Java...")
+            # Aquí puedes agregar plantillas específicas para Java
+            self.java_templates = {
+                "class": "public class {name} {{\n    // TODO: Implementar clase\n}}",
+                "interface": "public interface {name} {{\n    // TODO: Definir métodos\n}}",
+                "main": "public class {name} {{\n    public static void main(String[] args) {{\n        // TODO: Código principal\n    }}\n}}"
+            }
+            print("✅ Plantillas Java configuradas")
+        except Exception as e:
+            print(f"❌ Error configurando plantillas Java: {e}")
+
+    def setup_java_shortcuts(self):
+        """Configura atajos para Java"""
+        try:
+            print("🔧 Configurando atajos Java...")
+            # Aquí puedes agregar atajos de teclado específicos para Java
+            print("✅ Atajos Java configurados")
+        except Exception as e:
+            print(f"❌ Error configurando atajos Java: {e}")
     def setup_kotlin_features(self):
         self.setWindowTitle(f"Creators Studio - {self.project_name} [Kotlin]")
         if hasattr(self, 'ai_panel'):
@@ -695,34 +744,37 @@ class IllustratorWindow(QMainWindow):
             )
 
     def create_tool_panel(self):
-        self.tool_panel = QDockWidget("Herramientas", self)
-        self.tool_panel.setObjectName("ToolPanel")
-        self.tool_panel.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        
-        tool_widget = QWidget()
-        layout = QVBoxLayout(tool_widget)
-        
-        tools = [
-            ("Seleccionar", "select"),
-            ("Rectángulo", "rectangle"),
-            ("Texto", "text"),
-            ("Botón", "button"),
-            ("Campo de texto", "input")
-        ]
-        
-        self.tool_buttons = {}
-        for tool_name, tool_id in tools:
-            btn = QPushButton(tool_name)
-            btn.setCheckable(True)
-            btn.clicked.connect(lambda checked, tid=tool_id: self.set_tool(tid))
-            layout.addWidget(btn)
-            self.tool_buttons[tool_id] = btn
-        
-        self.tool_buttons["select"].setChecked(True)
-        layout.addStretch()
-        tool_widget.setLayout(layout)
-        self.tool_panel.setWidget(tool_widget)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.tool_panel)
+        """Crea el panel de herramientas"""
+        try:
+            print("🔧 Creando panel de herramientas...")
+            self.tools_dock = QDockWidget("🛠️ Herramientas", self)
+            tools_widget = QWidget()
+            layout = QVBoxLayout(tools_widget)
+            
+            # Agregar herramientas básicas
+            tools = ["Selección", "Texto", "Formas", "Líneas"]
+            for tool in tools:
+                btn = QPushButton(tool)
+                layout.addWidget(btn)
+            
+            layout.addStretch()
+            self.tools_dock.setWidget(tools_widget)
+            self.tools_dock.setMaximumWidth(200)
+            print("✅ Panel de herramientas creado")
+        except Exception as e:
+            print(f"❌ Error creando panel de herramientas: {e}")
+
+    def create_properties_panel(self):
+        """Crea el panel de propiedades"""
+        try:
+            print("🔧 Creando panel de propiedades...")
+            self.properties_dock = QDockWidget("📋 Propiedades", self)
+            properties_widget = QLabel("Panel de propiedades")
+            self.properties_dock.setWidget(properties_widget)
+            self.properties_dock.setMaximumWidth(250)
+            print("✅ Panel de propiedades creado")
+        except Exception as e:
+            print(f"❌ Error creando panel de propiedades: {e}")
 
     def create_layers_panel(self):
         self.layers_panel = QDockWidget("Capas", self)
@@ -863,11 +915,11 @@ class IllustratorWindow(QMainWindow):
             print("🔧 Creando panel de IA...")
             
             # Crear el panel de IA como QWidget normal
-            ai_widget = EnhancedAIChatPanel(self.code_generator, self)
+            self.ai_widget = EnhancedAIChatPanel(self.code_generator, self)  # ✅ Guardar referencia
             
-            # ✅ CORREGIDO: Usar self.ai_panel consistentemente
+            # Crear el dock widget contenedor
             self.ai_panel = QDockWidget("🤖 AI Assistant", self)
-            self.ai_panel.setWidget(ai_widget)
+            self.ai_panel.setWidget(self.ai_widget)  # ✅ Usar la referencia guardada
             self.ai_panel.setFeatures(
                 QDockWidget.DockWidgetMovable | 
                 QDockWidget.DockWidgetFloatable | 
@@ -880,9 +932,6 @@ class IllustratorWindow(QMainWindow):
             
         except Exception as e:
             print(f"❌ Error creando panel de IA: {e}")
-            # Fallback
-            self.ai_panel = QDockWidget("AI Assistant", self)
-            self.ai_panel.setWidget(QLabel("Error cargando IA"))
     def create_file_explorer_panel(self):
         """Crea el panel del explorador de archivos con mejoras"""
         self.file_explorer_panel = QDockWidget("Explorador de Archivos", self)

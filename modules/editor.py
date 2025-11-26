@@ -131,13 +131,10 @@ class EnhancedCodeEditor(QPlainTextEdit):
         if self.highlighter:
             self.highlighter.setDocument(None)
         
-        # Crear un resaltador básico si HighlighterFactory no está disponible
         try:
-            # Intentar importar HighlighterFactory
             from .highlighter import HighlighterFactory
             self.highlighter = HighlighterFactory.create_highlighter(file_path, self.document(), self.theme)
         except ImportError:
-            # Si no está disponible, crear un resaltador básico
             self.create_basic_highlighter(file_path)
         except Exception as e:
             print(f"Error creando highlighter: {e}")
@@ -149,7 +146,7 @@ class EnhancedCodeEditor(QPlainTextEdit):
             from .highlighter import VSCodeHighlighter
             self.highlighter = VSCodeHighlighter(self.document(), self.theme)
         except ImportError:
-            # Si tampoco puede importar VSCodeHighlighter, usar uno mínimo
+    
             self.highlighter = BasicHighlighter(self.document())
             print("Usando resaltador básico")
 
@@ -159,20 +156,17 @@ class BasicHighlighter(QSyntaxHighlighter):
     def __init__(self, document):
         super().__init__(document)
         self.highlighting_rules = []
-        
-        # Reglas básicas para comentarios
+
         comment_format = QTextCharFormat()
         comment_format.setForeground(QColor("#6A9955"))
         self.highlighting_rules.append((QRegExp("//[^\n]*"), comment_format))
         self.highlighting_rules.append((QRegExp("/\\*.*\\*/"), comment_format))
-        
-        # Reglas para strings
+
         string_format = QTextCharFormat()
         string_format.setForeground(QColor("#CE9178"))
         self.highlighting_rules.append((QRegExp("\".*\""), string_format))
         self.highlighting_rules.append((QRegExp("'.*'"), string_format))
-        
-        # Reglas para números
+
         number_format = QTextCharFormat()
         number_format.setForeground(QColor("#B5CEA8"))
         self.highlighting_rules.append((QRegExp("\\b\\d+\\b"), number_format))
