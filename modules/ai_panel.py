@@ -1,7 +1,10 @@
 from .common_imports import *
+import os
 import shutil
 import psutil
-import subprocessfrom pathlib import Path
+from datetime import datetime
+import subprocess 
+from pathlib import Path
 import torch
 import requests
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -93,6 +96,8 @@ class EnhancedAIChatPanel(QWidget):
         self.conversation_history = []
         self.current_provider = "deepseek"
         self.current_directory = Path.home()  
+        self.navigation_history = []
+        self.last_command = ""
         self.setup_ui()
         self.load_api_keys()
     
