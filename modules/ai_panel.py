@@ -1,4 +1,7 @@
 from .common_imports import *
+import shutil
+import psutil
+import subprocessfrom pathlib import Path
 import torch
 import requests
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -890,61 +893,7 @@ class EnhancedAIChatPanel(QWidget):
             return f"🤖 Para esa consulta necesitaría conectarme a DeepSeek. Por ahora puedo ayudarte con:\n• Gestión de archivos\n• Comandos del sistema\n• Navegación de directorios"
         
         return f"🔧 **Comando reconocido:** '{command}'\n\n💡 **Sugerencias:**\n• Usa 'lista' para ver archivos\n• 'crea archivo.txt' para crear archivos\n• 'edita nombre.txt' para modificar\n• 'estadísticas' para info del sistema"
-    def _add_formatted_message(self, sender, message, color, is_user=False):
-        """Añade mensaje formateado al chat - VERSIÓN CORREGIDA"""
-        cursor = self.chat_history.textCursor()
-        cursor.movePosition(QTextCursor.End)
-        
-        timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
-        
-        # Diseño diferente para usuario vs IA
-        if is_user:
-            # BURBUJA DE CHAT para el usuario (a la derecha)
-            formatted_message = f"""
-            <div style="margin: 12px 8px; font-family: 'Segoe UI', Arial, sans-serif;">
-                <div style="display: flex; justify-content: flex-end; margin-bottom: 4px;">
-                    <div style="text-align: right;">
-                        <span style="color: #858585; font-size: 11px; margin-right: 8px;">
-                            {timestamp}
-                        </span>
-                        <span style="font-weight: bold; color: #1976D2; font-size: 13px;">
-                            {sender}
-                        </span>
-                    </div>
-                </div>
-                <div style="display: flex; justify-content: flex-end;">
-                    <div style="background-color: #0084FF; color: white; padding: 12px 16px; 
-                            border-radius: 18px 18px 5px 18px; max-width: 70%; 
-                            line-height: 1.5; font-size: 13px; white-space: pre-wrap;">
-                        {message.replace(chr(10), '<br>')}
-                    </div>
-                </div>
-            </div>
-            """
-        else:
-            # TEXTO NORMAL para la IA (sin burbuja)
-            formatted_message = f"""
-            <div style="margin: 12px 8px; font-family: 'Segoe UI', Arial, sans-serif;">
-                <div style="display: flex; align-items: center; margin-bottom: 4px;">
-                    <span style="font-weight: bold; color: {self._get_sender_color(sender)}; font-size: 13px;">
-                        {sender}
-                    </span>
-                    <span style="color: #858585; font-size: 11px; margin-left: 8px;">
-                        {timestamp}
-                    </span>
-                </div>
-                <div style="line-height: 1.5; font-size: 13px; color: #d4d4d4; 
-                        white-space: pre-wrap; margin-left: 8px;">
-                    {message.replace(chr(10), '<br>')}
-                </div>
-            </div>
-            """
-        
-        cursor.insertHtml(formatted_message)
-        self.chat_history.ensureCursorVisible()
-        
-        scrollbar = self.chat_history.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+   
     def add_system_message(self, message):
         self._add_formatted_message("🤖 **Sistema**", message, "#2d2d30")
 

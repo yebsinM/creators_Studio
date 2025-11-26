@@ -94,25 +94,34 @@ class IllustratorWindow(QMainWindow):
         # Restaurar estado de la ventana al final de la inicialización
         QTimer.singleShot(100, self.restore_window_state)
     def setup_initial_layout(self):
-        """Configura el layout inicial - VERSIÓN SIMPLIFICADA"""
-        
-        # Limpiar solo los docks, no el central widget
-        existing_docks = self.findChildren(QDockWidget)
-        for dock in existing_docks:
-            self.removeDockWidget(dock)
-
-        # Agregar docks esenciales
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.file_explorer_panel)
-        #self.addDockWidget(Qt.RightDockWidgetArea, self.ai_panel)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.ai_dock)
-        
-        # Configurar visibilidad
-        self.file_explorer_panel.setVisible(True)
-        self.ai_panel.setVisible(True)
-        
-        # NO tocar el central widget (ya tiene Hoja_AI + pestañas)
-        
-        print("✅ Layout configurado - Hoja_AI y pestañas listas")
+        """Configura el layout inicial de los dock widgets"""
+        try:
+            print("🔧 Configurando layout inicial...")
+            
+            # Verificar y agregar cada panel
+            panels = [
+                ('tools_dock', Qt.LeftDockWidgetArea),
+                ('ai_panel', Qt.RightDockWidgetArea),
+                ('properties_dock', Qt.RightDockWidgetArea),
+                ('layers_dock', Qt.LeftDockWidgetArea),
+                ('color_dock', Qt.RightDockWidgetArea)
+            ]
+            
+            for panel_name, area in panels:
+                if hasattr(self, panel_name):
+                    panel = getattr(self, panel_name)
+                    if panel is not None:
+                        self.addDockWidget(area, panel)
+                        print(f"✅ {panel_name} agregado al área {area}")
+                    else:
+                        print(f"⚠️ {panel_name} es None")
+                else:
+                    print(f"⚠️ {panel_name} no existe")
+                    
+            print("✅ Layout inicial configurado correctamente")
+            
+        except Exception as e:
+            print(f"❌ Error en setup_initial_layout: {e}")
      
     def resizeEvent(self, event):
         """Maneja el redimensionamiento de la ventana principal"""
@@ -850,20 +859,30 @@ class IllustratorWindow(QMainWindow):
         self.paragraph_panel.setVisible(False)  
     def create_ai_panel(self):
         """Crea y configura el panel de IA como dock widget"""
-        # Crear el panel de IA como QWidget normal
-        ai_widget = EnhancedAIChatPanel(self.code_generator, self)
-        
-        # Crear un QDockWidget contenedor
-        self.ai_dock = QDockWidget("AI Assistant - Control Total", self)
-        self.ai_dock.setWidget(ai_widget)
-        self.ai_dock.setFeatures(
-            QDockWidget.DockWidgetMovable | 
-            QDockWidget.DockWidgetFloatable | 
-            QDockWidget.DockWidgetClosable
-        )
-        self.ai_dock.setMinimumWidth(350)
-        self.ai_dock.setMaximumWidth(500)
-
+        try:
+            print("🔧 Creando panel de IA...")
+            
+            # Crear el panel de IA como QWidget normal
+            ai_widget = EnhancedAIChatPanel(self.code_generator, self)
+            
+            # ✅ CORREGIDO: Usar self.ai_panel consistentemente
+            self.ai_panel = QDockWidget("🤖 AI Assistant", self)
+            self.ai_panel.setWidget(ai_widget)
+            self.ai_panel.setFeatures(
+                QDockWidget.DockWidgetMovable | 
+                QDockWidget.DockWidgetFloatable | 
+                QDockWidget.DockWidgetClosable
+            )
+            self.ai_panel.setMinimumWidth(350)
+            self.ai_panel.setMaximumWidth(500)
+            
+            print("✅ Panel de IA creado correctamente")
+            
+        except Exception as e:
+            print(f"❌ Error creando panel de IA: {e}")
+            # Fallback
+            self.ai_panel = QDockWidget("AI Assistant", self)
+            self.ai_panel.setWidget(QLabel("Error cargando IA"))
     def create_file_explorer_panel(self):
         """Crea el panel del explorador de archivos con mejoras"""
         self.file_explorer_panel = QDockWidget("Explorador de Archivos", self)
