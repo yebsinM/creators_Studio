@@ -94,34 +94,34 @@ class IllustratorWindow(QMainWindow):
         # Restaurar estado de la ventana al final de la inicialización
         QTimer.singleShot(100, self.restore_window_state)
     def setup_initial_layout(self):
-        """Configura el layout inicial de los dock widgets"""
+        """Configura el layout inicial SOLO con paneles que existen"""
         try:
             print("🔧 Configurando layout inicial...")
             
-            # Verificar y agregar cada panel
-            panels = [
-                ('tools_dock', Qt.LeftDockWidgetArea),
+            # ✅ SOLO paneles que sabemos que existen
+            panels_to_add = [
+                ('illustrator_tools_dock', Qt.LeftDockWidgetArea),
                 ('ai_panel', Qt.RightDockWidgetArea),
-                ('properties_dock', Qt.RightDockWidgetArea),
-                ('layers_dock', Qt.LeftDockWidgetArea),
-                ('color_dock', Qt.RightDockWidgetArea)
+                ('file_explorer_dock', Qt.LeftDockWidgetArea)
             ]
             
-            for panel_name, area in panels:
+            added_panels = 0
+            for panel_name, area in panels_to_add:
                 if hasattr(self, panel_name):
                     panel = getattr(self, panel_name)
                     if panel is not None:
                         self.addDockWidget(area, panel)
                         print(f"✅ {panel_name} agregado al área {area}")
+                        added_panels += 1
                     else:
                         print(f"⚠️ {panel_name} es None")
                 else:
                     print(f"⚠️ {panel_name} no existe")
                     
-            print("✅ Layout inicial configurado correctamente")
+            print(f"✅ Layout configurado: {added_panels} paneles agregados")
             
         except Exception as e:
-            print(f"❌ Error en setup_initial_layout: {e}")
+            print(f"❌ Error configurando layout: {e}")
      
     def resizeEvent(self, event):
         """Maneja el redimensionamiento de la ventana principal"""
@@ -624,26 +624,93 @@ class IllustratorWindow(QMainWindow):
         # Agregar splitter al layout principal
         self.main_layout.addWidget(self.main_splitter)
         
-        # ✅ PRIMERO: Crear todos los paneles dock
-        self.create_tool_panel()
-        self.create_layers_panel()
-        self.create_color_panel()
-        self.create_brushes_panel()
-        self.create_character_panel()
-        self.create_paragraph_panel()
-        self.create_ai_panel()                    # ← Esto crea self.ai_panel
-        self.create_file_explorer_panel()
-        self.create_illustrator_tools_panel()
-        self.create_effects_panel()
+        # ✅ CORREGIDO: Crear SOLO los paneles esenciales primero
+        print("🔧 Creando paneles esenciales...")
         
-        # ✅ LUEGO: Configurar el layout (AHORA self.ai_panel existe)
+        # PANELES ESENCIALES (los que sabemos que funcionan)
+        self.create_illustrator_tools_panel()  # Panel de herramientas Illustrator
+        self.create_ai_panel()                 # Panel de IA
+        self.create_file_explorer_panel()      # Explorador de archivos
+        
+        # ❌ COMENTADO TEMPORALMENTE: Paneles que pueden causar problemas
+        # self.create_tool_panel()
+        # self.create_layers_panel()
+        # self.create_color_panel()
+        # self.create_brushes_panel()
+        # self.create_character_panel()    # ← POSIBLE PROBLEMA
+        # self.create_paragraph_panel()
+        # self.create_effects_panel()
+        
+        # ✅ PRIMERO: Configurar el layout con paneles que existen
         self.setup_initial_layout()
         
-        # ✅ FINALMENTE: Otras configuraciones
+        # ✅ LUEGO: Crear menús y conexiones
         self.create_menu_bar()
         self.connect_hoja_ai_signals()
         
-        self.statusBar().showMessage("Ready | Modo Android Studio: Código ←→ Diseño")
+        # ✅ FINALMENTE: Limpiar ventanas ocultas
+        self.cleanup_hidden_windows()
+        
+        self.statusBar().showMessage("✅ Ready | Modo Android Studio: Código ←→ Diseño")
+        
+        print("🎨 Interfaz configurada correctamente")
+    
+    def cleanup_hidden_windows(self):
+        """Limpia ventanas que puedan estar ocultas o en segundo plano"""
+        print("🧹 Limpiando ventanas ocultas...")
+        
+        try:
+            # Obtener todas las ventanas hijas
+            children = self.findChildren(QDockWidget)
+            print(f"🔍 Encontrados {len(children)} dock widgets")
+            
+            for i, child in enumerate(children):
+                print(f"  {i+1}. {child.windowTitle()} - Visible: {child.isVisible()}")
+                
+            # Buscar y cerrar diálogos ocultos
+            dialogs = self.findChildren(QDialog)
+            for dialog in dialogs:
+                if not dialog.isVisible() or dialog.isHidden():
+                    print(f"🗑️ Cerrando diálogo oculto: {dialog.windowTitle()}")
+                    dialog.reject()
+                    dialog.close()
+                    
+            print("✅ Limpieza de ventanas completada")
+            
+        except Exception as e:
+            print(f"❌ Error en limpieza de ventanas: {e}")
+
+    def closeEvent(self, event):
+        """Maneja el cierre de la ventana - Cierra todas las ventanas hijas"""
+        print("🔒 Cerrando ventana Illustrator...")
+        
+        try:
+            # Cerrar todos los dock widgets explícitamente
+            docks_to_close = [
+                'tools_dock', 'ai_panel', 'properties_dock', 'layers_dock',
+                'color_dock', 'brushes_dock', 'character_dock', 'paragraph_dock',
+                'file_explorer_dock', 'illustrator_tools_dock', 'effects_dock'
+            ]
+            
+            for dock_name in docks_to_close:
+                if hasattr(self, dock_name):
+                    dock = getattr(self, dock_name)
+                    if dock:
+                        print(f"🔒 Cerrando {dock_name}")
+                        dock.close()
+                        dock.setParent(None)
+            
+            # Forzar cierre de cualquier ventana restante
+            for child in self.findChildren(QWidget):
+                if child != self and child.isWindow():
+                    child.close()
+                    
+            print("✅ Ventana Illustrator cerrada correctamente")
+            event.accept()
+            
+        except Exception as e:
+            print(f"❌ Error cerrando ventana: {e}")
+            event.accept()  # Aceptar el cierre de todas formas
     def create_hoja_ai_panel(self):
         """Crea el panel Hoja_AI como un QDockWidget normal pero con visibilidad forzada"""
         self.hoja_ai_panel = QDockWidget("Hoja_AI - Lienzo Profesional", self)
