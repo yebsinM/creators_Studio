@@ -1,15 +1,44 @@
 import sys
+import os
+from pathlib import Path
 from PySide6.QtWidgets import QApplication, QMainWindow, QStackedWidget
 from PySide6.QtCore import QSettings, Qt, QSize, Signal
 from PySide6.QtGui import QFont
 from ui.auth_window import AuthWindow, RegisterWindow
 from ui.main_app import MainApp
-from ui.entorno_java import IllustratorWindow
 from config.database import SupabaseClient
+
+# Añadir el directorio actual al path para importar los módulos
+sys.path.append(str(Path(__file__).parent))
+
+def get_illustrator_window():
+    """Función para importar IllustratorWindow desde la nueva ubicación"""
+    try:
+        # Intentar desde la nueva estructura modular
+        from modules.workspace import IllustratorWindow
+        print("✓ IllustratorWindow cargado desde modules/workspace.py")
+        return IllustratorWindow
+    except ImportError as e:
+        print(f"Error cargando desde modules: {e}")
+        try:
+            # Intentar desde el archivo principal nuevo
+            from entorno_java_main import IllustratorWindow
+            print("✓ IllustratorWindow cargado desde entorno_java_main.py")
+            return IllustratorWindow
+        except ImportError as e:
+            print(f"Error cargando desde entorno_java_main: {e}")
+            # Si el archivo original todavía existe como respaldo
+            try:
+                from entorno_java import IllustratorWindow
+                print("✓ IllustratorWindow cargado desde entorno_java.py (legacy)")
+                return IllustratorWindow
+            except ImportError:
+                raise ImportError("No se pudo encontrar IllustratorWindow en ninguna ubicación")
 
 class AppManager(QMainWindow):
     
     project_opened = Signal(str, str, str)
+    
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Creators App")
@@ -18,10 +47,12 @@ class AppManager(QMainWindow):
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
 
+        # Obtener IllustratorWindow dinámicamente
+        self.IllustratorWindow = get_illustrator_window()
+        
         self.main_app = MainApp(self.show_auth, self.show_entorno_java)
         self.auth = AuthWindow(self.stack, self.handle_login_success) 
         self.register = RegisterWindow(self.stack)
-        
         
         self.entorno_java = None  
 
@@ -33,6 +64,7 @@ class AppManager(QMainWindow):
         self.show_auth()
 
         self.load_window_state()
+
     def set_auth_window_size(self):
         """Tamaño pequeño fijo para auth (800x600)"""
         self.setFixedSize(800, 600)
@@ -76,7 +108,7 @@ class AppManager(QMainWindow):
     def show_entorno_java(self, name=None, path=None, lang=None):
         """Mostrar entorno Java (pantalla completa)"""
         if not self.entorno_java:
-            self.entorno_java = IllustratorWindow(
+            self.entorno_java = self.IllustratorWindow(
                 project_name=name or "Proyecto",
                 project_path=path,
                 project_language=lang or "Java"
@@ -101,12 +133,10 @@ class AppManager(QMainWindow):
 
 def main():
     try:
-   
         SupabaseClient().get_client()
         
         app = QApplication(sys.argv)
         
-      
         font = QFont()
         font.setPointSize(10)
         app.setFont(font)

@@ -4,7 +4,56 @@ import os
 import datetime
 from pathlib import Path
 import subprocess
-from ui.entorno_java import IllustratorWindow
+
+# ===== NUEVAS IMPORTACIONES CORREGIDAS =====
+# Añadir el directorio raíz al path para importar los módulos
+sys.path.append(str(Path(__file__).parent.parent))
+
+def get_illustrator_window():
+    """Función para importar IllustratorWindow"""
+    try:
+        # Intentar desde modules
+        from modules.workspace import IllustratorWindow
+        print("✅ IllustratorWindow cargado desde modules/workspace.py")
+        return IllustratorWindow
+    except ImportError as e:
+        print(f"❌ Error desde modules: {e}")
+    
+    try:
+        # Intentar desde archivo principal
+        from entorno_java_main import IllustratorWindow
+        print("✅ IllustratorWindow cargado desde entorno_java_main.py")
+        return IllustratorWindow
+    except ImportError as e:
+        print(f"❌ Error desde entorno_java_main: {e}")
+    
+    try:
+        # Intentar desde archivo legacy
+        from entorno_java import IllustratorWindow
+        print("✅ IllustratorWindow cargado desde entorno_java.py")
+        return IllustratorWindow
+    except ImportError as e:
+        print(f"❌ Error desde entorno_java: {e}")
+    
+    # Si todo falla, crear clase dummy
+    print("⚠️ Usando clase DummyIllustratorWindow")
+    from PySide6.QtWidgets import QMainWindow
+    
+    class DummyIllustratorWindow(QMainWindow):
+        def __init__(self, project_name="Dummy", project_path=None, project_language="Java"):
+            super().__init__()
+            self.setWindowTitle(f"Dummy: {project_name}")
+            self.setMinimumSize(800, 600)
+        
+        def showMaximized(self):
+            self.show()
+            self.resize(1200, 800)
+    
+    return DummyIllustratorWindow
+
+# Obtener IllustratorWindow dinámicamente
+IllustratorWindow = get_illustrator_window()
+# ===== FIN NUEVAS IMPORTACIONES =====
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -21,7 +70,7 @@ from PySide6.QtCore import (
     Qt, QPoint, QSize, Property, QPropertyAnimation, 
     QEvent, QEasingCurve, QRect, QTimer, QSettings, QThread, Signal
 )
-from ui.entorno_java import IllustratorWindow
+
 class PathManager:
     def __init__(self):
         self.rutas_file = Path("rutas.txt")
@@ -182,7 +231,7 @@ class ProjectSetupWidget(QWidget):
         self.layout.setContentsMargins(40, 20, 40, 20)
         self.layout.setSpacing(20)
  
-        self.name_label = QLabel("Nomnre de tu Projecto:")
+        self.name_label = QLabel("Nombre de tu Proyecto:")
         self.name_label.setStyleSheet("color: white; font-size: 14px;")
         self.name_input = QLineEdit()
         self.name_input.setStyleSheet("""
@@ -197,7 +246,7 @@ class ProjectSetupWidget(QWidget):
         """)
         self.name_input.setFixedHeight(35)
 
-        self.location_label = QLabel("Ubicacion de tu Proyecto:")
+        self.location_label = QLabel("Ubicación de tu Proyecto:")
         self.location_label.setStyleSheet("color: white; font-size: 14px;")
         self.location_layout = QHBoxLayout()
         self.location_input = QLineEdit()
@@ -234,7 +283,6 @@ class ProjectSetupWidget(QWidget):
             self.location_input.setText(folder)
 
 class AndroidSetupWidget(ProjectSetupWidget):
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.settings = QSettings("MiEmpresa", "MiApp")
@@ -415,210 +463,6 @@ class AndroidSetupWidget(ProjectSetupWidget):
         except Exception as e:
             print(f"Error verificando {language}: {e}")
             return False
-    
-    def cancel_installation(self):
-        """Cancela la instalación en curso"""
-        if hasattr(self, 'install_thread') and self.install_thread:
-            self.install_thread.stop()
-        if self.progress_msg:
-            self.progress_msg.hide()
-            self.progress_msg = None
-        QMessageBox.information(self, "Instalación cancelada", "La instalación ha sido cancelada por el usuario")
-        
-    def update_install_progress(self, percent, message):
-        """Actualiza el diálogo de progreso"""
-        if self.progress_msg:
-            self.progress_msg.setText(f"{message}\n\nProgreso: {percent}%")
-            QApplication.processEvents()
-    
-    def handle_install_result(self, success, message):
-        """Maneja el resultado de la instalación"""
-        if self.progress_msg:
-            self.progress_msg.hide()
-            self.progress_msg = None
-        
-        if success:
-            QMessageBox.information(self, "Instalación completada", message)
-        else:
-            msg = QMessageBox(self)
-            msg.setIcon(QMessageBox.Warning)
-            msg.setWindowTitle("Error de instalación")
-            msg.setText(message)
-
-            if "manual" in message.lower():
-                msg.addButton("Abrir sitio web", QMessageBox.AcceptRole)
-                msg.addButton(QMessageBox.Ok)
-                
-                if msg.exec() == QMessageBox.AcceptRole:
-                    if "Java" in message:
-                        webbrowser.open("https://adoptium.net")
-                    elif "Kotlin" in message:
-                        webbrowser.open("https://kotlinlang.org")
-                    elif "Flutter" in message:
-                        webbrowser.open("https://flutter.dev")
-            else:
-                msg.exec_()   
-    def _install_java_linux(self, progress_msg):
-        """Instala Java en Linux"""
-        try:
-            progress_msg.setText("Actualizando lista de paquetes...")
-            QApplication.processEvents()
-            
-            subprocess.run(["sudo", "apt-get", "update"], check=True)
-
-            progress_msg.setText("Instalando OpenJDK 17...")
-            QApplication.processEvents()
-            
-            try:
-                subprocess.run(["sudo", "apt-get", "install", "-y", "openjdk-17-jdk"], check=True)
-            except subprocess.CalledProcessError:
-                progress_msg.setText("Instalando OpenJDK 11...")
-                QApplication.processEvents()
-                subprocess.run(["sudo", "apt-get", "install", "-y", "openjdk-11-jdk"], check=True)
-
-            progress_msg.setText("Configurando variables de entorno...")
-            QApplication.processEvents()
-            
-            java_home = subprocess.run(["update-java-alternatives", "-l"], 
-                                    capture_output=True, text=True)
-            if java_home.returncode == 0:
-                java_path = java_home.stdout.split('\n')[0].split()[-1]
-                with open(os.path.expanduser("~/.bashrc"), "a") as f:
-                    f.write(f"\n# Configuración automática de Java\n")
-                    f.write(f"export JAVA_HOME={java_path}\n")
-                    f.write("export PATH=$JAVA_HOME/bin:$PATH\n")
-            
-            progress_msg.hide()
-            QMessageBox.information(
-                self,
-                "Instalación completada",
-                "Java JDK se ha instalado correctamente.\n\n"
-                "Por favor cierra y reabre la aplicación para que los cambios surtan efecto."
-            )
-            return True
-            
-        except Exception as e:
-            progress_msg.hide()
-            raise e
-
-    def _install_java_windows(self, progress_msg):
-        """Instala Java en Windows"""
-        try:
-            progress_msg.setText("Descargando instalador de Java...")
-            QApplication.processEvents()
-
-            jdk_url = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.7+7/OpenJDK17U-jdk_x64_windows_hotspot_17.0.7_7.msi"
-            download_path = os.path.join(os.environ["TEMP"], "jdk_installer.msi")
-
-            import urllib.request
-            urllib.request.urlretrieve(jdk_url, download_path)
-            
-            progress_msg.setText("Instalando Java JDK...")
-            QApplication.processEvents()
-
-            subprocess.run(["msiexec", "/i", download_path, "/quiet", "/norestart"], check=True)
-
-            java_home = "C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.7.7-hotspot"
-            subprocess.run(["setx", "JAVA_HOME", java_home], shell=True)
-            subprocess.run(["setx", "PATH", f"%JAVA_HOME%\\bin;%PATH%"], shell=True)
-            
-            progress_msg.hide()
-            QMessageBox.information(
-                self,
-                "Instalación completada",
-                "Java JDK se ha instalado correctamente.\n\n"
-                "Por favor cierra y reabre la aplicación para que los cambios surtan efecto."
-            )
-            return True
-            
-        except Exception as e:
-            progress_msg.hide()
-            raise e
-
-    def _install_java_macos(self, progress_msg):
-        """Instala Java en macOS"""
-        try:
-            progress_msg.setText("Instalando Java JDK...")
-            QApplication.processEvents()
-
-            subprocess.run(["brew", "install", "--cask", "temurin"], check=True)
-            
-            progress_msg.hide()
-            QMessageBox.information(
-                self,
-                "Instalación completada",
-                "Java JDK se ha instalado correctamente.\n\n"
-                "Por favor cierra y reabre la aplicación para que los cambios surtan efecto."
-            )
-            return True
-            
-        except Exception as e:
-            progress_msg.hide()
-            raise e
-
-    def _show_java_manual_instructions(self, system):
-        """Muestra instrucciones para instalar Java manualmente"""
-        instructions = {
-            'linux': (
-                "Para instalar Java manualmente en Linux:\n\n"
-                "1. Abre una terminal\n"
-                "2. Ejecuta estos comandos:\n"
-                "   sudo apt update\n"
-                "   sudo apt install -y openjdk-17-jdk\n"
-                "3. Verifica la instalación con:\n"
-                "   java -version\n\n"
-                "Si tienes problemas, consulta:\n"
-                "https://openjdk.org/install/"
-            ),
-            'windows': (
-                "Para instalar Java manualmente en Windows:\n\n"
-                "1. Descarga el JDK 17 de:\n"
-                "   https://adoptium.net/temurin/releases\n"
-                "2. Ejecuta el instalador\n"
-                "3. Configura las variables de entorno:\n"
-                "   - JAVA_HOME: C:\\ruta\\al\\jdk-17\n"
-                "   - Agrega %JAVA_HOME%\\bin al PATH\n\n"
-                "Guía detallada:\n"
-                "https://docs.oracle.com/en/java/javase/17/install/installation-jdk-microsoft-windows-platforms.html"
-            ),
-            'darwin': (
-                "Para instalar Java manualmente en macOS:\n\n"
-                "1. Instala Homebrew si no lo tienes:\n"
-                "   /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"\n"
-                "2. Instala el JDK:\n"
-                "   brew install --cask temurin\n\n"
-                "O descarga directamente de:\n"
-                "https://adoptium.net/temurin/releases"
-            )
-        }
-        
-        msg = QMessageBox(self)
-        msg.setWindowTitle("Instalación manual requerida")
-        msg.setText("No se pudo completar la instalación automática de Java.\n\n" + instructions.get(system, instructions['linux']))
-        msg.setIcon(QMessageBox.Information)
-        msg.addButton("Abrir página de descarga", QMessageBox.AcceptRole)
-        msg.addButton(QMessageBox.Ok)
-        
-        if msg.exec() == QMessageBox.AcceptRole:
-            import webbrowser
-            webbrowser.open("https://adoptium.net/temurin/releases")
-
-    def check_project_name_exists(self, project_name):
-        """Verifica si ya existe un proyecto con el mismo nombre"""
-        projects_dir = Path.home() / ".myapp_projects"
-        projects_dir.mkdir(exist_ok=True, parents=True)
-        
-        for file in projects_dir.glob("*.json"):
-            try:
-                with open(file, 'r', encoding='utf-8') as f:
-                    project_data = json.load(f)
-                    if project_data.get("name") == project_name:
-                        return True
-            except:
-                continue
-        
-        project_path = Path(self.location_input.text()) / project_name
-        return project_path.exists()
         
     def create_project(self):
         if not self.name_input.text().strip():
@@ -683,6 +527,23 @@ class AndroidSetupWidget(ProjectSetupWidget):
         
         self.continue_project_creation(project_name, selected_language)
 
+    def check_project_name_exists(self, project_name):
+        """Verifica si ya existe un proyecto con el mismo nombre"""
+        projects_dir = Path.home() / ".myapp_projects"
+        projects_dir.mkdir(exist_ok=True, parents=True)
+        
+        for file in projects_dir.glob("*.json"):
+            try:
+                with open(file, 'r', encoding='utf-8') as f:
+                    project_data = json.load(f)
+                    if project_data.get("name") == project_name:
+                        return True
+            except:
+                continue
+        
+        project_path = Path(self.location_input.text()) / project_name
+        return project_path.exists()
+
     def continue_project_creation(self, project_name, selected_language):
         """Continúa con la creación del proyecto después de verificar el lenguaje"""
         base_dir = self.location_input.text()
@@ -734,7 +595,6 @@ class AndroidSetupWidget(ProjectSetupWidget):
         )
         self.entorno_window.show()
         
-     
         if hasattr(self, 'parent') and self.parent():
             main_window = self.parent()
             while main_window.parent() is not None:
@@ -743,6 +603,7 @@ class AndroidSetupWidget(ProjectSetupWidget):
             
         if hasattr(self.parent(), 'update_project_list'):
             self.parent().update_project_list()
+
     def create_project_structure(self, project_dir, language):
         """Crea la estructura de archivos según el lenguaje seleccionado"""
         try:
@@ -780,54 +641,54 @@ class AndroidSetupWidget(ProjectSetupWidget):
         """Crea el archivo MainActivity.java"""
         content = '''package com.example.myapp;
 
-    import androidx.appcompat.app.AppCompatActivity;
-    import android.os.Bundle;
+import androidx.appcompat.app.AppCompatActivity;
+import android.os.Bundle;
 
-    public class MainActivity extends AppCompatActivity {
-        @Override
-        protected void onCreate(Bundle savedInstanceState) {
-            super.onCreate(savedInstanceState);
-            setContentView(R.layout.activity_main);
-        }
+public class MainActivity extends AppCompatActivity {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
     }
-    '''
+}
+'''
         with open(os.path.join(project_dir, "app/src/main/java/com/example/myapp/MainActivity.java"), "w", encoding='utf-8') as f:
             f.write(content)
 
     def create_android_manifest(self, project_dir):
         """Crea AndroidManifest.xml"""
         content = '''<?xml version="1.0" encoding="utf-8"?>
-    <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-        package="com.example.myapp">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.myapp">
 
-        <application
-            android:allowBackup="true"
-            android:icon="@mipmap/ic_launcher"
-            android:label="@string/app_name"
-            android:roundIcon="@mipmap/ic_launcher_round"
-            android:supportsRtl="true"
-            android:theme="@style/AppTheme">
-            <activity
-                android:name=".MainActivity"
-                android:exported="true">
-                <intent-filter>
-                    <action android:name="android.intent.action.MAIN" />
-                    <category android:name="android.intent.category.LAUNCHER" />
-                </intent-filter>
-            </activity>
-        </application>
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
 
-    </manifest>
-    '''
+</manifest>
+'''
         with open(os.path.join(project_dir, "app/src/main/AndroidManifest.xml"), "w", encoding='utf-8') as f:
             f.write(content)
 
     def create_strings_xml(self, project_dir):
         """Crea strings.xml"""
         content = '''<resources>
-        <string name="app_name">My App</string>
-    </resources>
-    '''
+    <string name="app_name">My App</string>
+</resources>
+'''
         with open(os.path.join(project_dir, "app/src/main/res/values/strings.xml"), "w", encoding='utf-8') as f:
             f.write(content)
 
@@ -835,62 +696,63 @@ class AndroidSetupWidget(ProjectSetupWidget):
         """Crea build.gradle según el lenguaje"""
         if language == "java":
             content = '''plugins {
-        id 'com.android.application'
+    id 'com.android.application'
+}
+
+android {
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.example.myapp"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
     }
 
-    android {
-        compileSdk 33
-
-        defaultConfig {
-            applicationId "com.example.myapp"
-            minSdk 21
-            targetSdk 33
-            versionCode 1
-            versionName "1.0"
-        }
-
-        buildTypes {
-            release {
-                minifyEnabled false
-                proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            }
-        }
-        compileOptions {
-            sourceCompatibility JavaVersion.VERSION_1_8
-            targetCompatibility JavaVersion.VERSION_1_8
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-
-    dependencies {
-        implementation 'androidx.appcompat:appcompat:1.6.1'
-        implementation 'com.google.android.material:material:1.8.0'
-        implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
-    '''
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.8.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+}
+'''
         with open(os.path.join(project_dir, "app/build.gradle"), "w", encoding='utf-8') as f:
             f.write(content)
 
     def create_gradle_wrapper(self, project_dir):
         """Crea archivos básicos de Gradle"""
         wrapper_content = '''distributionBase=GRADLE_USER_HOME
-    distributionPath=wrapper/dists
-    distributionUrl=https\\://services.gradle.org/distributions/gradle-7.5-bin.zip
-    zipStoreBase=GRADLE_USER_HOME
-    zipStorePath=wrapper/dists
-    '''
+distributionPath=wrapper/dists
+distributionUrl=https\\://services.gradle.org/distributions/gradle-7.5-bin.zip
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+'''
         with open(os.path.join(project_dir, "gradle/wrapper/gradle-wrapper.properties"), "w", encoding='utf-8') as f:
             f.write(wrapper_content)
-         
-    def open_illustrator_window(name, path, lang):
-        print(f"Abriendo proyecto: {name}, {path}, {lang}")
-        entorno_window = IllustratorWindow(
-            project_name=name,
-            project_path=path,
-            project_language=lang
-        )
-        entorno_window.show()
-    
-        main_app.parent().close()
+
+    def on_language_installed(self, installed_language, required_language):
+        """Se llama cuando se instala un lenguaje desde el gestor"""
+        if installed_language == required_language:
+            if self.check_language_installed(required_language):
+                self.continue_project_creation(self.name_input.text().strip(), required_language)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Lenguaje no instalado",
+                    f"El lenguaje {required_language} sigue sin estar instalado correctamente."
+                )
 
 class ProjectListWidget(QWidget):
     project_opened_signal = Signal(str, str, str) 
@@ -1004,7 +866,6 @@ class ProjectListWidget(QWidget):
     def load_projects(self):
         self.project_list.clear()
         try:
-
             projects = path_manager.get_all_projects()
             for project in projects:
                 if not os.path.isabs(project["path"]):
@@ -1054,10 +915,12 @@ class ProjectListWidget(QWidget):
                 
         except Exception as e:
             self.project_list.addItem(f"Error al cargar proyectos: {str(e)}")
+
     def filter_projects(self, text):
         for i in range(self.project_list.count()):
             item = self.project_list.item(i)
             item.setHidden(text.lower() not in item.text().lower())
+
     def open_project_folder(self):
         selected = self.project_list.currentItem()
         if not selected:
@@ -1107,7 +970,6 @@ class ProjectListWidget(QWidget):
             try:
                 project_path = Path(project_data["path"])
                 
-              
                 if project_path.exists():
                     import shutil
                     try:
@@ -1168,6 +1030,7 @@ class ProjectListWidget(QWidget):
                     "Error", 
                     f"No se pudo eliminar el proyecto completamente:\n{str(e)}"
                 )
+
     def open_project(self, item):
         project_data = item.data(Qt.UserRole)
         if not project_data or isinstance(project_data, str):
@@ -1206,7 +1069,6 @@ class ProjectListWidget(QWidget):
             pass
         return "Java"  
     
-    
 class MainApp(QWidget):
     project_opened = Signal(str, str, str)  
     def __init__(self, on_logout, show_entorno_callback):
@@ -1215,15 +1077,12 @@ class MainApp(QWidget):
         self.show_entorno = show_entorno_callback
         self.setup_ui()
         
-        
         self.right_panel.project_opened_signal.connect(self.handle_project_opened)
 
     def handle_project_opened(self, project_name, project_path, project_language):
         """Maneja la señal de proyecto abierto"""
         print(f"Proyecto seleccionado: {project_name}, {project_path}, {project_language}")
         self.show_entorno(project_name, project_path, project_language)
-
-   
               
     def setup_ui(self):
         self.setMinimumSize(1000, 650)
@@ -1359,335 +1218,3 @@ class MainApp(QWidget):
         self.install_thread.progress_updated.connect(self.show_install_progress)
         self.install_thread.finished.connect(self.install_finished)
         self.install_thread.start()
-
-if __name__ == "__main__":
-    import sys
-    from PySide6.QtWidgets import QApplication, QMainWindow
-
-    app = QApplication(sys.argv)
-
-    def on_logout():
-        print("Logout")
-
-    def open_illustrator_window(name, path, lang):
-        print(f"Abriendo proyecto: {name}, {path}, {lang}")
-        entorno_window = IllustratorWindow(
-            project_name=name,
-            project_path=path,
-            project_language=lang
-        )
-        entorno_window.show()
-    
-        main_window = QApplication.activeWindow()
-        if main_window and hasattr(main_window, 'close'):
-            main_window.close()
-
-class LanguageInstallDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Instalar Lenguaje")
-        self.setMinimumWidth(350)
-        layout = QVBoxLayout(self)
-
-        label = QLabel("Selecciona el lenguaje que deseas instalar:")
-        layout.addWidget(label)
-
-        self.language_combo = QComboBox()
-        self.language_combo.addItems([
-            "Java", "Kotlin", "Dart (Flutter)", "Python", "C++", "C#"
-        ])
-        layout.addWidget(self.language_combo)
-
-        btn_layout = QHBoxLayout()
-        self.install_btn = QPushButton("Instalar")
-        self.cancel_btn = QPushButton("Cancelar")
-        btn_layout.addWidget(self.install_btn)
-        btn_layout.addWidget(self.cancel_btn)
-        layout.addLayout(btn_layout)
-
-        self.install_btn.clicked.connect(self.accept)
-        self.cancel_btn.clicked.connect(self.reject)
-
-    def selected_language(self):
-        return self.language_combo.currentText()
-
-    def show_language_install_dialog(self):
-        dialog = LanguageInstallDialog(self)
-        if dialog.exec() == QDialog.Accepted:
-            language = dialog.selected_language()
-            self.install_language(language)
-
-    def install_python(self):
-        import sys
-        import subprocess
-        try:
-            self.progress_updated.emit(10, "Verificando Python...")
-            result = subprocess.run([sys.executable, "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if result.returncode == 0:
-                self.progress_updated.emit(100, "Python ya está instalado.")
-                return True, "Python ya está instalado."
-            else:
-                self.progress_updated.emit(100, "Instalación manual requerida")
-                return False, "Descarga Python desde: https://www.python.org/downloads/"
-        except Exception as e:
-            return False, f"Error al verificar Python: {str(e)}"
-
-    def install_language(self, language=None):
-        dialog = LanguageInstallDialog(self)
-        if dialog.exec() == QDialog.Accepted:
-            language = dialog.selected_language()
-            self.start_install_thread(language)
-            return True
-        return False
-
-    def _install_java_linux(self, progress_msg):
-        """Instala Java en Linux"""
-        try:
-            progress_msg.setText("Actualizando lista de paquetes...")
-            QApplication.processEvents()
-            
-            subprocess.run(["sudo", "apt-get", "update"], check=True)
-
-            progress_msg.setText("Instalando OpenJDK 17...")
-            QApplication.processEvents()
-            
-            try:
-                subprocess.run(["sudo", "apt-get", "install", "-y", "openjdk-17-jdk"], check=True)
-            except subprocess.CalledProcessError:
-
-                progress_msg.setText("Instalando OpenJDK 11...")
-                QApplication.processEvents()
-                subprocess.run(["sudo", "apt-get", "install", "-y", "openjdk-11-jdk"], check=True)
-
-            progress_msg.setText("Configurando variables de entorno...")
-            QApplication.processEvents()
-            
-            java_home = subprocess.run(["update-java-alternatives", "-l"], 
-                                    capture_output=True, text=True)
-            if java_home.returncode == 0:
-                java_path = java_home.stdout.split('\n')[0].split()[-1]
-                with open(os.path.expanduser("~/.bashrc"), "a") as f:
-                    f.write(f"\n# Configuración automática de Java\n")
-                    f.write(f"export JAVA_HOME={java_path}\n")
-                    f.write("export PATH=$JAVA_HOME/bin:$PATH\n")
-            
-            progress_msg.hide()
-            QMessageBox.information(
-                self,
-                "Instalación completada",
-                "Java JDK se ha instalado correctamente.\n\n"
-                "Por favor cierra y reabre la aplicación para que los cambios surtan efecto."
-            )
-            return True
-            
-        except Exception as e:
-            progress_msg.hide()
-            raise e
-
-    def _install_java_windows(self, progress_msg):
-        """Instala Java en Windows"""
-        try:
-            progress_msg.setText("Descargando instalador de Java...")
-            QApplication.processEvents()
-
-            jdk_url = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.7+7/OpenJDK17U-jdk_x64_windows_hotspot_17.0.7_7.msi"
-            download_path = os.path.join(os.environ["TEMP"], "jdk_installer.msi")
- 
-            import urllib.request
-            urllib.request.urlretrieve(jdk_url, download_path)
-            
-            progress_msg.setText("Instalando Java JDK...")
-            QApplication.processEvents()
-
-            subprocess.run(["msiexec", "/i", download_path, "/quiet", "/norestart"], check=True)
-
-            java_home = "C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.7.7-hotspot"
-            subprocess.run(["setx", "JAVA_HOME", java_home], shell=True)
-            subprocess.run(["setx", "PATH", f"%JAVA_HOME%\\bin;%PATH%"], shell=True)
-            
-            progress_msg.hide()
-            QMessageBox.information(
-                self,
-                "Instalación completada",
-                "Java JDK se ha instalado correctamente.\n\n"
-                "Por favor cierra y reabre la aplicación para que los cambios surtan efecto."
-            )
-            return True
-            
-        except Exception as e:
-            progress_msg.hide()
-            raise e
-
-    def _install_java_macos(self, progress_msg):
-        """Instala Java en macOS"""
-        try:
-            progress_msg.setText("Instalando Java JDK...")
-            QApplication.processEvents()
-
-            subprocess.run(["brew", "install", "--cask", "temurin"], check=True)
-            
-            progress_msg.hide()
-            QMessageBox.information(
-                self,
-                "Instalación completada",
-                "Java JDK se ha instalado correctamente.\n\n"
-                "Por favor cierra y reabre la aplicación para que los cambios surtan efecto."
-            )
-            return True
-            
-        except Exception as e:
-            progress_msg.hide()
-            raise e
-
-    def _show_java_manual_instructions(self, system):
-        """Muestra instrucciones para instalar Java manualmente"""
-        instructions = {
-            'linux': (
-                "Para instalar Java manualmente en Linux:\n\n"
-                "1. Abre una terminal\n"
-                "2. Ejecuta estos comandos:\n"
-                "   sudo apt update\n"
-                "   sudo apt install -y openjdk-17-jdk\n"
-                "3. Verifica la instalación con:\n"
-                "   java -version\n\n"
-                "Si tienes problemas, consulta:\n"
-                "https://openjdk.org/install/"
-            ),
-            'windows': (
-                "Para instalar Java manualmente en Windows:\n\n"
-                "1. Descarga el JDK 17 de:\n"
-                "   https://adoptium.net/temurin/releases\n"
-                "2. Ejecuta el instalador\n"
-                "3. Configura las variables de entorno:\n"
-                "   - JAVA_HOME: C:\\ruta\\al\\jdk-17\n"
-                "   - Agrega %JAVA_HOME%\\bin al PATH\n\n"
-                "Guía detallada:\n"
-                "https://docs.oracle.com/en/java/javase/17/install/installation-jdk-microsoft-windows-platforms.html"
-            ),
-            'darwin': (
-                "Para instalar Java manualmente en macOS:\n\n"
-                "1. Instala Homebrew si no lo tienes:\n"
-                "   /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"\n"
-                "2. Instala el JDK:\n"
-                "   brew install --cask temurin\n\n"
-                "O descarga directamente de:\n"
-                "https://adoptium.net/temurin/releases"
-            )
-        }
-        
-        msg = QMessageBox(self)
-        msg.setWindowTitle("Instalación manual requerida")
-        msg.setText("No se pudo completar la instalación automática de Java.\n\n" + instructions.get(system, instructions['linux']))
-        msg.setIcon(QMessageBox.Information)
-        msg.addButton("Abrir página de descarga", QMessageBox.AcceptRole)
-        msg.addButton(QMessageBox.Ok)
-        
-        if msg.exec() == QMessageBox.AcceptRole:
-            import webbrowser
-            webbrowser.open("https://adoptium.net/temurin/releases")
-    
-    def create_project(self):
-
-        if not self.name_input.text().strip():
-            QMessageBox.critical(self, "Error", "El nombre del proyecto es requerido")
-            return
-            
-        if not self.location_input.text().strip():
-            QMessageBox.critical(self, "Error", "La ubicación del proyecto es requerida")
-            return
-
-        if not os.path.isdir(self.location_input.text()):
-            QMessageBox.critical(self, "Error", "La ubicación especificada no existe")
-            return
-
-        self.save_last_location()
-        
-        selected_language = self.language_combo.currentText()
-        if not self.check_language_installed(selected_language):
-                reply = QMessageBox.question(
-                    self,
-                    "Lenguaje no instalado",
-                    f"{selected_language} no está instalado en tu sistema. ¿Deseas abrir el gestor de lenguajes para instalarlo?",
-                    QMessageBox.Yes | QMessageBox.No
-                )
-                if reply == QMessageBox.Yes:
-                    from ui.language_manager import LanguageManager
-                    self.language_manager = LanguageManager(self)
-                    self.language_manager.language_installed.connect(
-                        lambda lang: self.on_language_installed(lang, selected_language)
-                    )
-                    self.language_manager.show()
-                    return
-                else:
-                    QMessageBox.information(
-                        self,
-                        "Instalación requerida",
-                        f"Debes instalar {selected_language} antes de crear el proyecto."
-                    )
-
-        self.continue_project_creation()
-        
-        project_name = self.name_input.text().strip()
-        project_path = os.path.join(self.location_input.text(), project_name)
-        project_data = {
-            "name": self.name_input.text(),
-            "project_type": "Android",
-            "language": selected_language,
-            "location_path": self.location_input.text(),
-            "android_device_type": "Emulator" if self.emulator_radio.isChecked() else "Physical",
-            "android_emulator_type": self.emulator_combo.currentText() if self.emulator_radio.isChecked() else None,
-            "android_instant_run": self.instant_run_check.isChecked(),
-            "android_vector_drawables": self.vector_drawable_check.isChecked(),
-            "created_at": datetime.datetime.now().isoformat(),
-            "last_modified": datetime.datetime.now().isoformat()
-        }
-        
-        try:
-            projects_dir = Path.home() / ".myapp_projects"
-            projects_dir.mkdir(exist_ok=True, parents=True)
-
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            safe_name = "".join(c for c in self.name_input.text() if c.isalnum() or c in " _-").rstrip()
-            filename = f"{safe_name}_{timestamp}.json"
-            filepath = projects_dir / filename
-            
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(project_data, f, indent=2, ensure_ascii=False)
-
-            project_dir = Path(self.location_input.text()) / safe_name
-            project_dir.mkdir(exist_ok=True, parents=True)
-            
-            QMessageBox.information(
-                self, 
-                "Éxito", 
-                f"Proyecto {self.name_input.text()} creado exitosamente!\n\n"
-                f"Ubicación: {project_dir}"
-            )
-
-            self.entorno_window = IllustratorWindow( 
-                project_name = project_name,
-                project_path = project_path)
-            self.entorno_window.show()
-
-            if hasattr(self.parent(), 'update_project_list'):
-                self.parent().update_project_list()
-                
-        except Exception as e:
-            QMessageBox.critical(
-                self, 
-                "Error", 
-                f"Error al crear proyecto:\n{str(e)}"
-            )
-    def on_language_installed(self, installed_language, required_language):
-        """Se llama cuando se instala un lenguaje desde el gestor"""
-        if installed_language == required_language:
-
-            if self.check_language_installed(required_language):
-                self.continue_project_creation()
-            else:
-                QMessageBox.warning(
-                    self,
-                    "Lenguaje no instalado",
-                    f"El lenguaje {required_language} sigue sin estar instalado correctamente."
-                )
-
